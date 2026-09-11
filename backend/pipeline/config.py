@@ -68,10 +68,12 @@ FIRMS = {
     # sempit dari domain CAMS: titik api yang relevan buat asap Indonesia ada di sini.
     "area": (94.0, -11.5, 141.5, 7.5),
     "min_confidence": "n",                  # buang deteksi 'low', simpan 'nominal' & 'high'
-    # Hanya tampilkan api KUAT: FRP >= 30 MW (kategori "kuat" ke atas). Deteksi
-    # kecil/sedang (api ladang, tungku) terlalu ramai dan bukan yang bikin kabut
-    # asap. Ambang ini menyisakan ratusan titik paling berarti, peta tetap bersih.
-    "min_frp": 30.0,
+    # Hanya tampilkan api KUAT: FRP >= 100 MW. Deteksi kecil dan sedang (api
+    # ladang, tungku) terlalu ramai dan bukan yang bikin kabut asap.
+    # Di Kertas Emisi ambangnya 30 MW sementara banner menulis 100 MW. Di CESGS
+    # Aether disamakan ke 100 MW atas keputusan user, 11 Sep 2026. Kalau angka
+    # ini diubah, ubah juga teks banner titik api di frontend/index.html.
+    "min_frp": 100.0,
     # Musim karhutla bisa >16 rb titik, banyak yang rangkap (3 satelit memotret api
     # yang sama dalam jarak meteran). Digabung ke sel ~2 km, diwakili FRP tertinggi:
     # ~3x lebih ringan buat HP tanpa menghilangkan pola sebaran atau puncak intensitas.
@@ -91,9 +93,6 @@ LAYERS = {
     "ispu": {"src": "turunan", "daily": False, "units": "", "level_label": "surface"},
     # AQI (US EPA), PEMBANDING ISPU. Turunan juga, dari enam parameter yang sama.
     "aqi":  {"src": "turunan", "daily": False, "units": "", "level_label": "surface"},
-    # PAPARAN penduduk: penduduk per sel (pop_grid) di sel yang ISPU-nya Tidak Sehat.
-    # Turunan dari ISPU + grid penduduk statis. Spasial, ikut waktu.
-    "paparan": {"src": "turunan", "daily": False, "units": "jiwa/sel", "level_label": "surface"},
     "pm25": {"cams_var": "particulate_matter_2.5um", "nc_var": "pm2p5", "src": "single",
              "conv": "massa", "daily": True, "units": "\u00b5g/m\u00b3", "level_label": "surface"},
     "pm10": {"cams_var": "particulate_matter_10um", "nc_var": "pm10", "src": "single",
@@ -114,9 +113,6 @@ LAYERS = {
     # Malam hari bisa turun ke ~100 m, siang di darat bisa lebih dari 2000 m.
     "pbl":  {"cams_var": "boundary_layer_height", "nc_var": "blh", "src": "single",
              "conv": "apa_adanya", "daily": False, "units": "m", "level_label": "surface"},
-    # Daya tampung, satu layer per parameter. Turunan, jadi tak ikut diunduh.
-    **{f"dt_{par}": {"src": "turunan", "daily": False, "units": "ton/tahun",
-                     "level_label": "surface"} for par in ("pm25", "pm10", "so2", "no2")},
 }
 
 # ---------------------------------------------------------------------------

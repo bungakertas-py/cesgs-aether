@@ -1,7 +1,9 @@
-name: Deploy Kertas Emisi
+name: Deploy CESGS Aether
 
-# Jalankan pipeline GFS lalu publish frontend+data ke GitHub Pages.
-# Cron tiap 6 jam (menit :15). Bisa juga dipicu manual (workflow_dispatch).
+# Jalankan pipeline CAMS lalu publish frontend+data ke GitHub Pages.
+# Sekali sehari, bisa juga dipicu manual (workflow_dispatch).
+# Secret yang WAJIB dipasang di repo ini, tidak ikut pindah dari Kertas Emisi,
+# ADS_KEY (Copernicus Atmosphere Data Store) dan FIRMS_KEY (NASA FIRMS).
 on:
   push:
     branches: [main]
@@ -64,19 +66,19 @@ jobs:
           cp -r backend/data/output/. _site/backend/data/output/
           cat > _site/index.html <<'HTML'
           <!doctype html><meta charset="utf-8">
-          <title>Kertas Emisi, peta kualitas udara interaktif Indonesia</title>
+          <title>CESGS Aether, peta kualitas udara interaktif Indonesia</title>
           <script>location.replace("./frontend/index.html")</script>
           <meta http-equiv="refresh" content="0; url=./frontend/index.html">
           <meta property="og:type" content="website">
-          <meta property="og:site_name" content="Kertas Emisi">
-          <meta property="og:title" content="Kertas Emisi, peta kualitas udara interaktif Indonesia">
+          <meta property="og:site_name" content="CESGS Aether">
+          <meta property="og:title" content="CESGS Aether, peta kualitas udara interaktif Indonesia">
           <meta property="og:description" content="Sebaran PM2.5, PM10, CO, NO2, SO2, ozon, dan kabut asap untuk seluruh Indonesia. Klik lokasimu untuk grafik per jam.">
-          <meta property="og:url" content="https://bungakertas-py.github.io/kertas-emisi/">
-          <meta property="og:image" content="https://bungakertas-py.github.io/kertas-emisi/frontend/og-image.png">
+          <meta property="og:url" content="https://bungakertas-py.github.io/cesgs-aether/">
+          <meta property="og:image" content="https://bungakertas-py.github.io/cesgs-aether/frontend/og-image.png">
           <meta name="twitter:card" content="summary_large_image">
-          <meta name="twitter:image" content="https://bungakertas-py.github.io/kertas-emisi/frontend/og-image.png">
+          <meta name="twitter:image" content="https://bungakertas-py.github.io/cesgs-aether/frontend/og-image.png">
           <style>html,body{margin:0;height:100%;background:#0a1018}</style>
-          <a href="./frontend/index.html" style="position:absolute;left:-9999px">Buka Kertas Emisi</a>
+          <a href="./frontend/index.html" style="position:absolute;left:-9999px">Buka CESGS Aether</a>
           HTML
 
       - uses: actions/upload-pages-artifact@v3

@@ -965,6 +965,9 @@ _PD_SCALE = {"pm25": 1.0, "pm10": 1.0, "co": 10.0, "no2": 0.1,
              "ispu": 1.0, "ispu_kritis": 1.0,
              # AQI (US EPA) juga bilangan bulat; kode dominan indeks 0..5.
              "aqi": 1.0, "aqi_kritis": 1.0,
+             # Angin 10 m untuk fitur Arah Asap, m/s. Skala 0,2 tidak terasa di
+             # lintasan dan memangkas ukuran berkas sekitar seperempat.
+             "angin_u": 0.2, "angin_v": 0.2,
              # Paparan: jiwa/sel bisa jutaan. int16 x 300 -> jangkauan ~9,8 juta.
              "paparan": 300.0,
              # PBL dalam meter, puncaknya ~3000. Muat di int16 tanpa diskalakan.

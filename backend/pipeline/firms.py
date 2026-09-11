@@ -33,7 +33,7 @@ def _ambil_satu(key: str, source: str, area, hari: int) -> list[dict]:
     w, s, e, n = area
     url = f"{C.FIRMS['api']}/{key}/{source}/{w},{s},{e},{n}/{hari}"
     # UA wajar: server FIRMS di balik Cloudflare, UA bawaan python bisa ditolak 403.
-    r = requests.get(url, timeout=120, headers={"User-Agent": "kertas-emisi/1.0"})
+    r = requests.get(url, timeout=120, headers={"User-Agent": "cesgs-aether/1.0"})
     r.raise_for_status()
     teks = r.text
     # FIRMS kadang balas HTTP 200 dengan PESAN GALAT berupa teks (mis. MAP_KEY salah

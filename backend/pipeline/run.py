@@ -1,5 +1,5 @@
 """
-Orchestrator Kertas Emisi: ambil run CAMS terbaru -> render tiap langkah ->
+Orchestrator CESGS Aether (turunan Kertas Emisi): ambil run CAMS terbaru -> render tiap langkah ->
 rekonsiliasi (retensi window) -> tulis catalog.json untuk frontend.
 
 Jalankan: python run.py
@@ -21,7 +21,7 @@ from config import KEEP_PAST_HOURS, LAYERS, OUTPUT_DIR
 import cams
 import firms
 from process import (CITY_PLACES, _export_velocity_json, hitung_aqi,
-                     hitung_daya_tampung, hitung_ispu, luas_sel, sampel_kota,
+                     hitung_ispu, sampel_kota,
                      write_city_data, write_point_series, write_scalar_frame)
 
 # Parameter yang diarsipkan tiap hari: tujuh polutan + ISPU. Format berkas harian
@@ -197,9 +197,11 @@ def main() -> None:
 
     # Velocity angin: satu per langkah, ditempel ke SEMUA frame parameter apa pun.
     vel_nama = {}
+    seri_u, seri_v = [], []          # deret angin padat untuk fitur Arah Asap
     for i, fstep in enumerate(jam_lead):
         u = _ambil(ds_s, C.WIND["nc_u"], i, up)
         v = _ambil(ds_s, C.WIND["nc_v"], i, up)
+        seri_u.append(u); seri_v.append(v)
         nama = f"wind_{run:%Y%m%d_%H}_f{fstep:03d}_velocity.json"
         _export_velocity_json(u, v, grid, run, fstep, OUTPUT_DIR / nama)
         vel_nama[fstep] = nama
@@ -211,6 +213,21 @@ def main() -> None:
     print(f"kerapatan udara: rata {np.mean([r.mean() for r in rho]):.3f} kg/m3")
 
     point_meta = {}
+
+    # Angin 10 m sebagai DERET TITIK, untuk fitur Arah Asap di frontend. Berkas
+    # velocity JSON di atas 1,8 MB PER JAM, jadi lintasan 48 jam lewat berkas
+    # itu berarti 86 MB. Dalam format deret int16 bergzip, 5 hari penuh cuma
+    # beberapa MB, dan frontend baru memuatnya waktu fitur itu dipakai.
+    # Dipotong ke wilayah yang mungkin dilewati asap dari Indonesia dalam 48 jam,
+    # 80-160 BT dan 25 LS sampai 22 LU. Domain penuh CAMS di sini 62-180 BT, dan
+    # potongan ini memangkas berkasnya jadi sekitar 2 MB per komponen.
+    waktu_angin = [(run + dt.timedelta(hours=h)).strftime("%Y-%m-%dT%H:00:00Z") for h in jam_lead]
+    g_angin, iris = _potong_grid(grid, 80.0, 160.0, -25.0, 22.0)
+    for key, seri in (("angin_u", seri_u), ("angin_v", seri_v)):
+        pm = write_point_series(key, [m[iris] for m in seri], waktu_angin, g_angin)
+        pm.update({"units": "m/s", "daily": False})
+        point_meta[key] = pm
+    print(f"deret angin: {len(seri_u)} langkah -> pd_angin_u, pd_angin_v")
     medan_semua = {}
     kota_medan = {}      # semua parameter di SATU sumbu waktu, untuk label kota
     for key, lay in LAYERS.items():
@@ -289,44 +306,12 @@ def main() -> None:
     print(f"  {'aqi':5} {len(seri_a):>3} frame  rata {rata_a:9.3f}  maks {maks_a:10.2f}  "
           f"indeks EPA (pembanding ISPU)")
 
-    # ---- Daya tampung udara (Permen LH No. 5), satu layer per parameter ----
-    lsm = _muat_lsm(hari, jam_run, grid, up)
-    seri_dt, vol_dt, waktu_dt, luas_darat = _tulis_daya_tampung(
-        medan_semua, jam_lead, run, grid, vel_nama, pra, lsm)
-    darat = luas_darat > 0
-    print(f"  daratan: {darat.sum()} dari {darat.size} sel ({100*darat.mean():.1f}%), "
-          f"luas total {luas_darat.sum()/1e6:,.0f} km2")
-    for par in C.DT_PARAM:
-        pm = write_point_series(f"dt_{par}", seri_dt[par], waktu_dt, grid)
-        pm.update({"units": "ton/tahun", "daily": False, "parameter": par,
-                   "bmua": C.BMUA_24JAM[par], "window_hours": C.ISPU_WINDOW_HOURS})
-        point_meta[f"dt_{par}"] = pm
-        kota_medan[f"dt_{par}"] = seri_dt[par]
-        nilai = np.stack(seri_dt[par])[:, darat]
-        n = nilai.size
-        print(f"  dt_{par:5} {len(seri_dt[par]):>3} frame  "
-              f"median {np.nanmedian(nilai):12,.0f}  min {np.nanmin(nilai):14,.0f}  "
-              f"terlampaui {100*np.nanmean(nilai < 0):5.1f}%  "
-              f"terpotong {100*np.mean(np.abs(nilai) > 32767*100):.2f}%  ton/tahun")
-
-    # Volume udara per sel (km3). Dengan ini popup bisa memecah DT jadi BE max dan
-    # BE eks tanpa perlu menyimpan konsentrasi rata 24 jam-nya sendiri:
-    #   BE max = V x BMUA,  BE eks = BE max - DT.
-    pv = write_point_series("dt_vol", vol_dt, waktu_dt, grid)
-    pv.update({"units": "km3", "daily": False})
-    point_meta["dt_vol"] = pv
-
     waktu_penuh = [(run + dt.timedelta(hours=h)).strftime("%Y-%m-%dT%H:00:00Z") for h in jam_lead]
     ukuran = write_city_data(kota_medan, waktu_penuh, grid)
     print(f"  nilai per kota: {len(kota_medan)} parameter, {ukuran/1e6:.2f} MB")
 
-    # Arsip harian (riwayat) + panel peringatan, keduanya diturunkan dari nilai per
-    # kota yang sama, jadi titiknya disampel sekali lalu dipakai bersama.
+    # Arsip harian (riwayat), diturunkan dari nilai per kota.
     places_k, kota_k = _kota_arsip(kota_medan, grid, waktu_penuh)
-    _tulis_peringatan(places_k, kota_k, waktu_penuh, run)
-    pm_pap = _tulis_paparan(seri_i, waktu_i, run, grid, vel_nama, _muat_pop_grid(grid))
-    if pm_pap:
-        point_meta["paparan"] = pm_pap
     _tulis_arsip(places_k, kota_k, waktu_penuh, run)
 
     # Overlay titik panas VIIRS (pengamatan, bukan ramalan). Berdiri sendiri, tak
@@ -341,6 +326,22 @@ def main() -> None:
     catalog, total = reconcile_and_catalog(run)
     (OUTPUT_DIR / "catalog.json").write_text(json.dumps(catalog, indent=2))
     print(f"\nSelesai. {total} frame, {len(catalog['layers'])} layer -> catalog.json")
+
+
+def _potong_grid(grid: dict, barat: float, timur: float, selatan: float, utara: float):
+    """Grid dan irisan numpy untuk memotong medan (baris-0 utara) ke satu kotak.
+    Tepinya dijepit ke domain yang ada dan jatuh tepat di titik grid."""
+    nx, ny = grid["width"], grid["height"]
+    dx = (grid["east"] - grid["west"]) / (nx - 1)
+    dy = (grid["north"] - grid["south"]) / (ny - 1)
+    x0 = max(0, int(round((barat - grid["west"]) / dx)))
+    x1 = min(nx - 1, int(round((timur - grid["west"]) / dx)))
+    y0 = max(0, int(round((grid["north"] - utara) / dy)))
+    y1 = min(ny - 1, int(round((grid["north"] - selatan) / dy)))
+    g = {"width": x1 - x0 + 1, "height": y1 - y0 + 1,
+         "west": grid["west"] + x0 * dx, "east": grid["west"] + x1 * dx,
+         "north": grid["north"] - y0 * dy, "south": grid["north"] - y1 * dy}
+    return g, (slice(y0, y1 + 1), slice(x0, x1 + 1))
 
 
 def _pemanasan_ispu(hari_run, jam_run):
@@ -358,7 +359,7 @@ def _pemanasan_ispu(hari_run, jam_run):
     Langkah T sendiri diambil dari run hari ini yang lebih segar."""
     hari = hari_run - dt.timedelta(days=1)
     lead = [str(h) for h in range(0, C.ISPU_WINDOW_HOURS, C.CAMS["leadtime_step"])]
-    perlu = C.ISPU_PARAM + ["pbl"]      # PBL ikut: jendela daya tampung memakainya juga
+    perlu = C.ISPU_PARAM + ["pbl"]
     single = [C.LAYERS[k]["cams_var"] for k in perlu if C.LAYERS[k]["src"] == "single"]
     model = [C.LAYERS[k]["cams_var"] for k in perlu if C.LAYERS[k]["src"] == "model"]
     nc_s = cams.fetch(hari, jam_run, single + C.UDARA["cams"], lead=lead,
@@ -450,54 +451,6 @@ def _tulis_aqi(medan_semua, jam_lead, run, grid, vel_nama, pemanasan=None):
     return seri, seri_kritis, waktu
 
 
-def _muat_lsm(hari, jam_run, grid, up):
-    """Pecahan daratan tiap sel (land_sea_mask CAMS). Medannya statis, jadi cukup
-    diminta satu langkah saja dan berlaku untuk seluruh deret."""
-    nc = cams.fetch(hari, jam_run, ["land_sea_mask"], lead=["0"],
-                    dest=C.RAW_DIR / f"cams_lsm_{hari:%Y%m%d}_{jam_run[:2]}.nc")
-    ds, _, up_l, _ = _buka(nc)
-    lsm = np.clip(_ambil(ds, "lsm", 0, up_l), 0.0, 1.0)
-    ds.close()
-    return lsm
-
-
-def _tulis_daya_tampung(medan_semua, jam_lead, run, grid, vel_nama, pemanasan, lsm):
-    """Daya tampung udara per sel, ton/tahun, satu berkas per parameter.
-
-    Jendelanya sama dengan ISPU (24 jam bergulir), karena Permen LH 5 memakai
-    rata-rata harian dan BMUA harian. PBLH juga dirata-rata 24 jam supaya sepadan
-    dengan konsentrasinya. Luas yang dipakai luas DARATAN saja, yaitu luas sel
-    dikali pecahan daratan; volume udara di atas laut tak berarti untuk kuota emisi."""
-    nwin = C.ISPU_WINDOW_HOURS // C.CAMS["leadtime_step"]
-    butuh = C.DT_PARAM + ["pbl"]
-    gab = {p: list((pemanasan or {}).get(p, [])) + list(medan_semua[p]) for p in butuh}
-    geser = len(gab["pbl"]) - len(jam_lead)
-    mulai = 0 if geser >= nwin else nwin - geser
-    luas_darat = luas_sel(grid) * np.where(lsm >= C.LSM_MIN, lsm, 0.0)
-
-    seri = {par: [] for par in C.DT_PARAM}
-    vol = []          # volume udara per sel, km3, dipakai popup memecah BE max & BE eks
-    waktu = []
-    for i in range(mulai, len(jam_lead)):
-        j = geser + i
-        jendela = slice(j - nwin, j + 1)
-        pblh24 = np.nanmean(np.stack(gab["pbl"][jendela]), axis=0)
-        vol.append(np.where(luas_darat > 0, luas_darat * pblh24 / 1e9, np.nan))
-        fstep = jam_lead[i]
-        valid = run + dt.timedelta(hours=fstep)
-        for par in C.DT_PARAM:
-            c24 = np.nanmean(np.stack(gab[par][jendela]), axis=0)
-            dtp = hitung_daya_tampung(par, c24, pblh24, luas_darat)
-            write_scalar_frame(dtp, grid, f"dt_{par}", run, valid, "ton/tahun",
-                               f"f{fstep:03d}",
-                               extra={"model": "CAMS", "velocity_json": vel_nama[fstep],
-                                      "window_hours": C.ISPU_WINDOW_HOURS,
-                                      "bmua": C.BMUA_24JAM[par], "parameter": par})
-            seri[par].append(dtp)
-        waktu.append(valid.strftime("%Y-%m-%dT%H:00:00Z"))
-    return seri, vol, waktu, luas_darat
-
-
 def _ringkas_kritis(seri_i, seri_k) -> None:
     """Cetak sebaran pencemar kritis. Berguna untuk memeriksa kewajaran: di
     Indonesia PM2.5 memang biasanya yang menentukan, kalau bukan itu curigai
@@ -581,102 +534,6 @@ def _kota_arsip(kota_medan, grid, waktu_penuh):
             pad = np.full((a.shape[0], nt - a.shape[1]), np.nan)
             kota[k] = np.concatenate([pad, a], axis=1)
     return places, kota
-
-
-def _tulis_peringatan(places, kota, waktu_penuh, run) -> None:
-    """Sapu ISPU tiap kota sepanjang horizon ramalan, tandai yang diperkirakan
-    mencapai Tidak Sehat (ISPU > 100) atau lebih. -> peringatan.json untuk banner."""
-    a = kota.get("ispu")
-    if not places or a is None:
-        print("  peringatan dilewati: ISPU per kota tak ada")
-        return
-    ncity = a.shape[0]
-    daftar = []
-    for i in range(ncity):
-        seri = a[i]
-        if not np.any(np.isfinite(seri)):
-            continue
-        puncak = float(np.nanmax(seri))
-        if puncak <= 100:                         # masih di bawah Tidak Sehat
-            continue
-        ip = int(np.nanargmax(seri))
-        lewat = np.where(seri > 100)[0]           # pertama kali menembus ambang
-        imulai = int(lewat[0]) if lewat.size else ip
-        daftar.append({"n": places[i]["n"],
-                       "lat": round(float(places[i]["lat"]), 4),
-                       "lon": round(float(places[i]["lon"]), 4),
-                       "puncak": round(puncak), "kategori": _kategori_ispu(puncak),
-                       "puncak_waktu": waktu_penuh[ip], "mulai": waktu_penuh[imulai]})
-    daftar.sort(key=lambda d: -d["puncak"])
-    doc = {"generated": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-           "run": run.strftime("%Y-%m-%dT%H:00:00Z"), "ambang": 100, "kota": daftar}
-    (OUTPUT_DIR / "peringatan.json").write_text(json.dumps(doc, separators=(",", ":")),
-                                                encoding="utf-8")
-    print(f"  peringatan: {len(daftar)} kota diperkirakan Tidak Sehat atau lebih")
-
-
-def _muat_pop_grid(grid):
-    """Grid penduduk statis (jiwa/sel), SEJAJAR grid ISPU. Dibangun offline dari
-    sebaran id_pop ke sel darat CAMS (pop_grid.bin.gz, int32 gzip, baris-0 utara).
-    None kalau berkas tak ada atau dimensinya beda."""
-    import gzip
-    p = Path(__file__).resolve().parent / "pop_grid.bin.gz"
-    if not p.exists():
-        print("  pop_grid.bin.gz tak ada -> paparan dilewati")
-        return None
-    a = np.frombuffer(gzip.decompress(p.read_bytes()), dtype="<i4").astype("f8")
-    ny, nx = grid["height"], grid["width"]
-    if a.size != ny * nx:
-        print(f"  pop_grid ukuran {a.size} != {ny*nx}, dimensi grid beda -> dilewati")
-        return None
-    return a.reshape(ny, nx)
-
-
-def _tulis_paparan(seri_ispu, waktu, run, grid, vel_nama, pop_grid):
-    """Populasi terpapar SPASIAL, dari grid ISPU x grid penduduk (pop_grid).
-
-    Per langkah: jumlah jiwa per kategori ISPU -> paparan.json (dipakai panel yang
-    ikut slider); DAN render layer 'paparan' = penduduk di sel yang ISPU-nya Tidak
-    Sehat (>100), heatmap ungu. Seluruh penduduk sel dianggap terpapar nilai ISPU
-    sel itu; grid ~44 km, jadi PEMBANDING kasar tingkat sel, bukan paparan individu.
-    Catatan ditulis di UI."""
-    if pop_grid is None or not seri_ispu:
-        print("  paparan dilewati: pop_grid / ISPU per grid tak ada")
-        return None
-    kat = [n for _, n in C.ISPU_KATEGORI]                 # Baik..Berbahaya
-    batas = [b for b, _ in C.ISPU_KATEGORI]
-    nt = len(seri_ispu)
-    jiwa = [[0] * len(kat) for _ in range(nt)]
-    expo_seri = []
-    for t in range(nt):
-        ispu = seri_ispu[t]
-        fin = np.isfinite(ispu)
-        lo = -1.0
-        for c, b in enumerate(batas):
-            m = fin & (ispu > lo) & (ispu <= b)
-            jiwa[t][c] = int(np.nansum(pop_grid[m]))
-            lo = b
-        # Layer heatmap: penduduk di sel Tidak Sehat+ (ISPU>100), sisanya bening (NaN).
-        expo = np.where(fin & (ispu > 100), pop_grid.astype("f4"), np.nan)
-        expo_seri.append(expo)
-        valid = _parse(waktu[t])
-        fstep = int((valid - run).total_seconds() // 3600)
-        write_scalar_frame(expo, grid, "paparan", run, valid, "jiwa/sel", f"f{fstep:03d}",
-                           extra={"model": "CAMS", "velocity_json": vel_nama.get(fstep)})
-    # Deret titik: penduduk terpapar di sel yang diklik, sepanjang waktu (0 saat aman).
-    pm = write_point_series("paparan", expo_seri, waktu, grid)
-    pm.update({"units": "jiwa/sel", "daily": False})
-    total = int(np.nansum(pop_grid))
-    doc = {"generated": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-           "run": run.strftime("%Y-%m-%dT%H:00:00Z"), "indeks": "ISPU",
-           "sumber": "grid penduduk ~44 km (sebaran kabupaten/kota, Kepmendagri 2025)",
-           "jiwa_terdata": total, "kategori": kat, "times": waktu, "jiwa": jiwa}
-    (OUTPUT_DIR / "paparan.json").write_text(json.dumps(doc, separators=(",", ":")),
-                                             encoding="utf-8")
-    buruk = max((sum(r[2:]) for r in jiwa), default=0)
-    print(f"  paparan: grid {total/1e6:.1f} juta jiwa, puncak Tidak Sehat+ "
-          f"{buruk/1e6:.1f} juta, layer {nt} frame")
-    return pm
 
 
 # Pembulatan per parameter di arsip: indeks & CO bilangan bulat, PM & O3 satu

@@ -1,8 +1,8 @@
-/* Service worker Kertas Emisi — cache SHELL app (berversi), data cuaca TETAP
+/* Service worker CESGS Aether — cache SHELL app (berversi), data udara TETAP
  * online. Naikkan VERSION tiap rilis frontend agar user dapat versi terbaru
  * (cache lama dihapus saat activate). */
-const VERSION = "v11";
-const CACHE = "kertas-emisi-" + VERSION;
+const VERSION = "v1";
+const CACHE = "cesgs-aether-" + VERSION;
 
 // Saat REVIEW LOKAL, jangan cache shell sama sekali. Strategi cache-first membuat
 // peramban menyajikan app.js versi kemarin sementara data di /backend/ sudah versi
@@ -16,8 +16,11 @@ const DEV = ["127.0.0.1", "localhost", "0.0.0.0"].includes(location.hostname) ||
 // Shell same-origin (relatif thd scope frontend/). Data model (../backend/…)
 // berada DI LUAR path frontend → sengaja tak di-cache (lihat handler fetch).
 const SHELL = [
-  "./", "./index.html", "./style.css", "./app.js", "./skewt.js", "./wilayah.js", "./dtw-preview.png",
-  "./favicon.svg", "./manifest.webmanifest",
+  // Tiap berkas di sini WAJIB ada. cache.addAll itu semua atau tidak sama sekali,
+  // jadi satu 404 menggagalkan seluruh precache dan gagalnya ditelan .catch().
+  // Daftar Kertas Emisi dulu memuat skewt.js yang tidak pernah ada di app ini.
+  "./", "./index.html", "./style.css", "./app.js",
+  "./cesgs-mark.png", "./cesgs-logo.png", "./manifest.webmanifest",
   "./icon-192.png", "./icon-512.png",
   "./data/world_countries.geojson", "./data/idn_provinces.geojson", "./data/id_places.json",
 ];

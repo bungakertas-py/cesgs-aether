@@ -73,10 +73,6 @@ const LEGENDS = {
   aqi:  { head: "AQI", words: 1,
           cells: AQI_KAT.map(([, nama, warna, putih], i) =>
             [nama, warna, putih, AQI_RENTANG[i]]) },
-  // Paparan penduduk: jiwa/sel di area Tidak Sehat, ramp ungu (cermin _PALET_PAPARAN).
-  paparan: { head: "jiwa/sel", lebar: 1,
-             cells: [["50 rb", "#efe3f5", 0], ["200 rb", "#c994d4", 0],
-                     ["500 rb", "#a44cb3", 1], ["1 jt", "#761c8c", 1], ["2 jt", "#400052", 1]] },
   pm25: _leg("pm25", UG, [15, 20, 35, 40, 55]),
   pm10: _leg("pm10", UG, [20, 35, 40, 60, 75]),
   co:   _leg("co", UG, [500, 1000, 2000, 4000, 8000, 10000]),
@@ -110,99 +106,17 @@ function bakuMutuLayer(key, harian) {
   return b[periode] != null ? { nilai: b[periode], periode } : null;
 }
 
-// ---- DAYA TAMPUNG UDARA (Permen LH No. 5) ----
-// Skalanya MENERUS, cermin _DT_SCALE di process.py. Peraturan cuma memberi rumus
-// dan satu batas yang berarti: NOL. Positif berarti beban maksimum belum
-// terlampaui, negatif berarti sudah. Penggolongan di luar itu tak ada dasarnya,
-// jadi tak ada lagi kategori buatan di legenda.
-const DT_PARAM = ["pm25", "pm10", "so2", "no2"];
-const DT_RENTANG = 50000, DT_LANGKAH = 10000;
-// Warna tiap PITA 10K. Cermin _DT_PITA di process.py: palet bwr dibalik dan sisi
-// birunya diganti hijau. MERAH berarti terlampaui, HIJAU berarti masih ada ruang.
-const DT_PITA = ["#ff1818", "#ff4c4c", "#ff7e7e", "#ffb2b2", "#ffe6e6",
-                 "#e6ffe6", "#b2ffb2", "#80ff80", "#4cff4c", "#18ff18"];
-const DT_PUTIH = [1, 1, 0, 0, 0, 0, 0, 0, 0, 0];   // sel gelap -> teksnya diterangkan
-// Tepi BAWAH tiap pita; itu yang jadi label, jadi legenda terbaca "mulai dari".
-const DT_TEPI = DT_PITA.map((_, k) => -DT_RENTANG + DT_LANGKAH * k);
-function dtIndeks(v) {
-  const k = Math.floor((v + DT_RENTANG) / DT_LANGKAH);
-  return Math.min(DT_PITA.length - 1, Math.max(0, k));
-}
-const dtWarna = (v) => DT_PITA[dtIndeks(v)];
-// Ribuan disingkat K supaya "-50.000" tak memakan lebar sel. Nol tetap "0".
-const _K = (v) => (v === 0 ? "0" : (v / 1000).toLocaleString("id-ID") + "K");
-const DT_LEGEND = {
-  head: "ton/tahun", lebar: 1,
-  cells: DT_TEPI.map((v, k) => [_K(v), DT_PITA[k], DT_PUTIH[k]]),
-};
-// Dipasang DI SINI, bukan di dalam literal LEGENDS: LEGENDS berdiri jauh di atas,
-// dan menaruh rujukan ke const yang belum terinisialisasi mematikan seluruh app.
-for (const _p of DT_PARAM) LEGENDS[`dt_${_p}`] = DT_LEGEND;
-
-// ================= GERBANG SANDI LAYER DAYA TAMPUNG =================
-// PERINGATAN JUJUR: berjalan di browser, TIDAK mengamankan apa pun. Sandinya
-// terbaca lewat view-source dan datanya di /backend/data/output/ tetap bisa
-// diambil langsung. Ini cuma penghalang sopan supaya keempat layer daya tampung
-// tak terbuka begitu saja bagi yang sekadar lewat.
-//
-// Sandi TIDAK diingat: tiap kali salah satu dari empat tombol daya tampung
-// ditekan, sandi diketik lagi, walau baru saja keluar dari layer itu. Permintaan
-// user, kekakuannya persis gerbang model WRF di Kertas Cuaca.
-const DT_SANDI = "bungakertas123!";
-const isLayerDT = (key) => !!key && key.startsWith("dt_");
-
-// Tampilkan modal, kembalikan janji true kalau sandinya benar.
-function mintaSandiDT() {
-  return new Promise((selesai) => {
-    const ov = $("pw-overlay"), inp = $("pw-input"), err = $("pw-err");
-    if (!ov || !inp) { selesai(false); return; }
-    ov.classList.add("show");
-    inp.value = "";
-    err.hidden = true;
-    setTimeout(() => inp.focus(), 50);
-
-    const tutup = (hasil) => {
-      ov.classList.remove("show");
-      $("pw-ok").removeEventListener("click", onOk);
-      $("pw-cancel").removeEventListener("click", onBatal);
-      inp.removeEventListener("keydown", onTombol);
-      ov.removeEventListener("click", onLatar);
-      selesai(hasil);
-    };
-    const onOk = () => {
-      if (inp.value === DT_SANDI) { tutup(true); }
-      else { err.hidden = false; inp.select(); }
-    };
-    const onBatal = () => tutup(false);
-    const onTombol = (e) => {
-      if (e.key === "Enter") onOk();
-      else if (e.key === "Escape") onBatal();
-      else err.hidden = true;
-    };
-    const onLatar = (e) => { if (e.target === ov) onBatal(); };
-
-    $("pw-ok").addEventListener("click", onOk);
-    $("pw-cancel").addEventListener("click", onBatal);
-    inp.addEventListener("keydown", onTombol);
-    ov.addEventListener("click", onLatar);
-  });
-}
-
 // Rumus kimia ditulis dengan angka turun. Dua bentuk: <sub> untuk tempat yang
 // menerima HTML, karakter Unicode untuk atribut & teks polos (tooltip, judul, share).
 const KIMIA_HTML = {
-  ispu: "ISPU", aqi: "AQI", paparan: "Paparan Penduduk", pm25: "PM<sub>2.5</sub>", pm10: "PM<sub>10</sub>", co: "CO",
+  ispu: "ISPU", aqi: "AQI", pm25: "PM<sub>2.5</sub>", pm10: "PM<sub>10</sub>", co: "CO",
   no2: "NO<sub>2</sub>", so2: "SO<sub>2</sub>", o3: "O<sub>3</sub>", aod: "Kabut Asap",
   pbl: "PBLH",
-  dt_pm25: "Daya Tampung PM<sub>2.5</sub>", dt_pm10: "Daya Tampung PM<sub>10</sub>",
-  dt_so2: "Daya Tampung SO<sub>2</sub>", dt_no2: "Daya Tampung NO<sub>2</sub>",
 };
 const KIMIA_TEKS = {
-  ispu: "ISPU", aqi: "AQI", paparan: "Paparan Penduduk", pm25: "PM\u2082.\u2085", pm10: "PM\u2081\u2080", co: "CO",
+  ispu: "ISPU", aqi: "AQI", pm25: "PM\u2082.\u2085", pm10: "PM\u2081\u2080", co: "CO",
   no2: "NO\u2082", so2: "SO\u2082", o3: "O\u2083", aod: "Kabut Asap",
   pbl: "PBLH",
-  dt_pm25: "Daya Tampung PM\u2082.\u2085", dt_pm10: "Daya Tampung PM\u2081\u2080",
-  dt_so2: "Daya Tampung SO\u2082", dt_no2: "Daya Tampung NO\u2082",
 };
 
 // Tema per-layer: "dark" = latar peta gelap (overlay putih); "light" = latar
@@ -212,12 +126,8 @@ const LAYER_THEME = {
   // nyaris hitam, dan hitam di atas alas gelap tak terbaca sebagai bahaya.
   // ISPU dari warna resmi Lampiran II, O3 dari gist_heat dibalik, Kabut Asap dari
   // copper dibalik. Empat layer sisanya ujungnya masih cukup terang, tetap gelap.
-  // Daya tampung memakai alas GELAP, bukan terang seperti tiga layer di atas.
-  // Titik tengah palet bwr itu PUTIH, dan putih di atas alas terang lenyap sama
-  // sekali; sel yang nyaris pas di ambang justru akan tampak seperti lubang.
   ispu: "light", aqi: "light", o3: "light", aod: "light",
-  dt_pm25: "dark", dt_pm10: "dark", dt_so2: "dark", dt_no2: "dark",
-  pm25: "dark", pm10: "dark", co: "dark", no2: "dark", so2: "dark", pbl: "dark", paparan: "dark",
+  pm25: "dark", pm10: "dark", co: "dark", no2: "dark", so2: "dark", pbl: "dark",
   wind_surface: "dark", rain_surface: "dark", rain_accum_surface: "dark",
   temp_surface: "dark", humidity_surface: "dark", cloud_surface: "dark", pressure_surface: "dark",
   storm_potential: "dark", cin_surface: "dark", wind_strato: "dark", temp_strato: "dark",
@@ -394,6 +304,12 @@ isobarPane.style.pointerEvents = "none";
 // siklon. TETAP bisa diklik untuk popup detail (FRP, keyakinan, waktu).
 const firePane = map.createPane("fire");
 firePane.style.zIndex = 658;
+// Lintasan Arah Asap, DI ATAS titik api. Di bawahnya garis tertimbun kerumunan
+// titik api dan tak terbaca. Pane-nya tak menangkap tetikus, jadi titik api di
+// bawahnya tetap bisa diklik.
+const asapPane = map.createPane("asap");
+asapPane.style.zIndex = 660;
+asapPane.style.pointerEvents = "none";
 // Dua set label: GELAP (teks terang, utk tema gelap/angin) & TERANG (teks gelap,
 // utk tema terang/hujan). Ditukar oleh applyTheme() sesuai layer aktif.
 const _lblOpts = { pane: "labels", maxNativeZoom: 16, updateWhenZooming: false, keepBuffer: 4 };
@@ -426,6 +342,14 @@ let cyclones = null, cyclonesLoading = null;
 let cycloneGroup = null;
 let fireOn = false;         // toggle titik panas VIIRS (FIRMS), overlay pengamatan
 let fireData = null, fireLoading = null;
+// Status Arah Asap. SENGAJA di sini, bukan di modulnya. asapTitik dibaca oleh
+// fungsi ganti frame yang letaknya jauh di atas modul, dan let yang dibaca
+// sebelum barisnya dieksekusi melempar galat yang mematikan seluruh app.
+let asapTitik = null;             // {lat, lon} titik api yang sedang dilacak
+let asapGroup = null;
+let asapTimer = 0;
+let asapToken = 0;
+let asapPasBingkai = false;       // peta didekatkan ke lintasan cuma sekali, waktu baru dibuka
 let fireGroup = null;
 let itczOn = false;         // toggle zona ITCZ (pita + garis pertemuan angin)
 let itcz = null, itczLoading = null;
@@ -671,7 +595,6 @@ function setActiveLayer(layerKey) {
   frames = catalog.layers[layerKey].frames;
   document.querySelectorAll(".layer-btn[data-layer]").forEach((b) =>
     b.classList.toggle("active", b.dataset.layer === activeBase));
-  $("paparan-btn")?.classList.toggle("active", activeBase === "paparan");   // tombolnya di kontrol kanan
   renderLegend(layerKey);
   applyTheme();
   if (velocityLayer) { map.removeLayer(velocityLayer); velocityLayer = null; } // recreate warna partikel
@@ -745,7 +668,7 @@ async function showFrame(i) {
   if (vt) vt.textContent = DAILY_LAYERS.has(activeLayer) ? fmtDay(frame.valid_time) : fmtValid(frame.valid_time);
   const ts = $("time-slider"); if (ts) ts.value = String(current);
   refreshCityIcons();                    // label kota (+ikon bila aktif) ikut waktu aktif
-  refreshInfoIfOpen();                   // panel Kualitas Udara ikut waktu aktif (jika terbuka)
+  if (asapTitik) jadwalAsap();           // lintasan asap dihitung ulang dari jam yang tampil
   if (cyclonesOn) refreshCyclones();     // siklon + jalur ikut waktu aktif
   if (itczOn) refreshItcz();             // zona ITCZ ikut waktu aktif
   if (activeLayer === "pressure_surface") refreshIsobars();   // isobar ikut waktu aktif
@@ -1482,120 +1405,6 @@ async function trenKotaHTML(nama, key) {
          trenKotaSVG(a.dates, vals, unit, warna, pita) + "</div>";
 }
 
-// ================= PERINGATAN kualitas udara (banner) =================
-// Backend menyapu ISPU tiap kota sepanjang ramalan dan menandai yang tembus
-// Tidak Sehat (ISPU>100). Banner #peringatan-note menampilkan ringkasan + daftar.
-let peringatanData = null;
-async function loadPeringatan() {
-  try {
-    const r = await fetch(DATA_BASE + "peringatan.json");
-    peringatanData = r.ok ? await r.json() : null;
-  } catch (e) { peringatanData = null; }
-  refreshInfoIfOpen();
-  markInfoAlert();
-}
-
-// ---- Populasi terpapar (paparan.json) ----------------------------------
-// Perkiraan jumlah penduduk pada tiap kategori ISPU untuk waktu yang sedang
-// tampil. Hanya muncul saat layer ISPU aktif (indeksnya memang ISPU).
-let paparanDoc = null;
-async function loadPaparan() {
-  try {
-    const r = await fetch(DATA_BASE + "paparan.json");
-    paparanDoc = r.ok ? await r.json() : null;
-  } catch (e) { paparanDoc = null; }
-  refreshInfoIfOpen();
-}
-function fmtJuta(n) {
-  n = Math.round(n || 0);
-  if (n >= 1e6) return (n / 1e6).toLocaleString("id-ID", { maximumFractionDigits: 1 }) + " juta";
-  if (n >= 1e3) return (n / 1e3).toLocaleString("id-ID", { maximumFractionDigits: 0 }) + " ribu";
-  return n.toLocaleString("id-ID");
-}
-
-// ---- Panel KUALITAS UDARA (sidebar kanan) ------------------------------
-// Gabungan peringatan kota + populasi terpapar dalam SATU sidebar, dibuka lewat
-// tombol "Kualitas Udara". Isi populasi terpapar ikut slider waktu.
-let sidebarMode = null;   // "point" | "info" | null
-function peringatanHTML() {
-  const kota = (peringatanData && peringatanData.kota) || [];
-  if (!kota.length) return "";
-  const rows = kota.map((k) => {
-    const bg = ispuKategori(k.puncak)[2];
-    return `<div class="per-row" data-lat="${k.lat}" data-lon="${k.lon}" data-nama="${escAttr(k.n)}">` +
-           `<span class="per-dot" style="background:${bg}"></span>` +
-           `<span class="per-nama">${k.n}</span>` +
-           `<span class="per-nilai">${k.puncak}</span>` +
-           `<span class="per-kapan">${fmtKapan(k.mulai)}</span></div>`;
-  }).join("");
-  return `<div class="info-sec"><div class="info-sec-h"><span class="material-symbols-outlined">warning</span>` +
-    `${kota.length} kota diperkirakan Tidak Sehat atau lebih</div>` +
-    `<div class="per-lead">Kota yang diramalkan menembus ISPU 100 (Tidak Sehat) dalam 5 hari ke depan. ` +
-    `Indikasi model CAMS, bukan pengumuman resmi. Klik untuk menuju kotanya.</div>` +
-    `<div class="per-list">${rows}</div></div>`;
-}
-function paparanHTML() {
-  if (!paparanDoc) return "";
-  const vt = frames[current] && frames[current].valid_time;
-  let i = nearestIndex(paparanDoc.times, vt); if (i < 0) i = 0;
-  const j = paparanDoc.jiwa[i] || [0, 0, 0, 0, 0];
-  const buruk = (j[2] || 0) + (j[3] || 0) + (j[4] || 0);   // Tidak Sehat + lebih buruk
-  const rows = (paparanDoc.kategori || []).map((nama, k) => {
-    const col = (ISPU_KAT[k] && ISPU_KAT[k][2]) || "#999";
-    return `<div class="per-row"><span class="per-dot" style="background:${col}"></span>` +
-           `<span class="per-nama">${nama}</span>` +
-           `<span class="per-nilai">${fmtJuta(j[k] || 0)}</span></div>`;
-  }).join("");
-  return `<div class="info-sec"><div class="info-sec-h"><span class="material-symbols-outlined">groups</span>` +
-    `Populasi terpapar (ISPU)</div>` +
-    `<div class="info-big"><b>${buruk > 0 ? fmtJuta(buruk) : "0"}</b>` +
-    `<span>jiwa, udara Tidak Sehat atau lebih buruk</span></div>` +
-    `<div class="per-lead">Perkiraan penduduk per sel grid (~44 km) pada tiap kategori ISPU untuk ` +
-    `waktu yang tampil (${fmtKapan(vt)}). Seluruh penduduk sel dianggap seperti nilai ISPU sel itu, ` +
-    `jadi PEMBANDING kasar tingkat sel. Total terdata ~${fmtJuta(paparanDoc.jiwa_terdata)} jiwa. ` +
-    `Buka layer <b>Paparan Penduduk</b> untuk peta spasialnya. Sumber: ${paparanDoc.sumber}.</div>` +
-    `<div class="per-list">${rows}</div></div>`;
-}
-function renderInfoHTML() {
-  return (peringatanHTML() + paparanHTML()) || '<div class="pt-loading">Belum ada data kualitas udara.</div>';
-}
-function infoOpen() { return sidebarMode === "info" && !!$("point-panel")?.classList.contains("open"); }
-function wireInfoRows() {
-  document.querySelectorAll("#pt-body .per-row[data-lat]").forEach((row) => {
-    row.addEventListener("click", () => {
-      const la = parseFloat(row.dataset.lat), lo = parseFloat(row.dataset.lon);
-      map.setView([la, lo], 8, { animate: true });
-      openPoint(la, lo, row.dataset.nama);
-    });
-  });
-}
-function refreshInfoIfOpen() { if (infoOpen()) { isiSidebar(renderInfoHTML()); wireInfoRows(); } }
-function syncInfoToggle() { $("info-toggle")?.classList.toggle("active", infoOpen()); }
-function markInfoAlert() {
-  const ada = !!(peringatanData && peringatanData.kota && peringatanData.kota.length);
-  $("info-toggle")?.classList.toggle("has-alert", ada);
-}
-function openInfo() {
-  const pp = $("point-panel"); if (!pp) return;
-  sidebarMode = "info";
-  const t = $("pt-par"); if (t) t.innerHTML = "Kualitas Udara";
-  setPointLabel("Peringatan & populasi terpapar", "addr");
-  isiSidebar(renderInfoHTML());
-  wireInfoRows();
-  pp.classList.add("open");
-  pp.classList.toggle("hidden", sidebarTersembunyi);
-  $("pt-reopen")?.classList.toggle("show", sidebarTersembunyi);
-  geserUI();
-  syncInfoToggle();
-}
-
-function fmtKapan(iso) {
-  if (!iso) return "";
-  const w = toWIB(iso);
-  const hari = w.toLocaleDateString("id-ID", { day: "numeric", month: "short", timeZone: "UTC" });
-  return `${hari} ${String(w.getUTCHours()).padStart(2, "0")}:00`;
-}
-const escAttr = (s) => String(s).replace(/"/g, "&quot;");
 
 function nearestIndex(times, vt) {
   if (!vt || !times || !times.length) return -1;
@@ -1612,7 +1421,7 @@ function nearestIndex(times, vt) {
 // kategori, empat baris rincian neraca, lalu plot. Di popup 330 px itu sudah
 // tak muat. Jadi khusus layer itu detailnya dibuka di sidebar kanan yang bisa
 // disembunyikan, sedangkan layer polutan tetap memakai popup di titiknya.
-const pakaiSidebar = (key) => !!key && key.startsWith("dt_");
+const pakaiSidebar = (key) => false;   // CESGS Aether tidak punya layer daya tampung
 
 let sidebarTersembunyi = false;   // user menekan "sembunyikan", jangan dipaksa buka lagi
 
@@ -1621,14 +1430,12 @@ function sidebarAktif() { return !!$("point-panel")?.classList.contains("open");
 function bukaSidebar(judul, par, koordinat) {
   const pp = $("point-panel");
   if (!pp) return;
-  sidebarMode = "point";                 // isi titik, bukan panel Kualitas Udara
   setPointLabel(judul, koordinat ? "coord" : "addr");
   const t = $("pt-par"); if (t) t.innerHTML = par || "";
   pp.classList.add("open");
   pp.classList.toggle("hidden", sidebarTersembunyi);
   $("pt-reopen")?.classList.toggle("show", sidebarTersembunyi);
   geserUI();
-  syncInfoToggle();
 }
 
 // Panel memakan 380 px tepi kanan peta. Kontrol kanan, legenda, dan slider ikut
@@ -1644,9 +1451,7 @@ function isiSidebar(html) { const b = $("pt-body"); if (b) b.innerHTML = html; }
 function tutupSidebar() {
   $("point-panel")?.classList.remove("open", "hidden");
   $("pt-reopen")?.classList.remove("show");
-  sidebarMode = null;
   geserUI();
-  syncInfoToggle();
 }
 
 // Popup duduk persis di titiknya jadi tak perlu penanda. Sidebar tidak, jadi
@@ -1708,43 +1513,8 @@ async function badanTitik(key, lat, lon) {
     kepala = `<div class="pp-ispu${putih ? " putih" : ""}" style="background:${bg}">` +
              `<b>${nilai}</b><span>${nama}</span></div>${dom}`;
   }
-  const parDT = key.startsWith("dt_") ? key.slice(3) : null;
-  if (parDT) {
-    // Daya tampung: angka + kategori + pecahannya. BE max dan BE eks tak perlu
-    // disimpan sendiri, cukup volume udara per sel; BE max = V x BMUA, lalu
-    // BE eks = BE max - DT. Menghemat satu berkas deret per parameter.
-    const i = Math.max(0, nearestIndex(pd.meta.times, frames[current] && frames[current].valid_time));
-    const nilai = vals[i];
-    const bg = dtWarna(nilai);
-    // Kalimatnya dari aturannya sendiri: positif berarti beban maksimum BELUM
-    // terlampaui, negatif berarti SUDAH. Tak ada penggolongan lain di sana.
-    const nama = nilai < 0 ? "Beban maksimum terlampaui" : "Masih ada daya tampung";
-    const putih = DT_PUTIH[dtIndeks(nilai)];
-    warna = bg;
-    let rinci = "";
-    try {
-      const pv = await loadSeries("dt_vol");
-      const vol = sampleSeries(pv, lat, lon)[i];          // km3
-      if (isFinite(vol) && vol > 0) {
-        const bmua = BAKU_MUTU[parDT]["24 jam"];
-        const beMaxHari = (vol * 1e9) * bmua / 1e12;      // ton/hari
-        const beEksHari = beMaxHari - nilai / 365;
-        const r0 = (v) => Math.round(v).toLocaleString("id-ID");
-        rinci = `<div class="pp-rinci">` +
-          `<div><span>Volume udara</span><b>${r0(vol)} km³</b></div>` +
-          `<div><span>BE maksimum</span><b>${r0(beMaxHari * 365)} ton/th</b></div>` +
-          `<div><span>BE eksisting</span><b>${r0(beEksHari * 365)} ton/th</b></div>` +
-          `<div><span>BMUA 24 jam</span><b>${bmua} µg/m³</b></div></div>`;
-      }
-    } catch (e) { console.warn("volume udara tak terbaca", e); }
-    kepala = `<div class="pp-ispu${putih ? " putih" : ""}" style="background:${bg}">` +
-             `<b>${Math.round(nilai).toLocaleString("id-ID")}</b><span>${nama}</span></div>` +
-             `<div class="pp-kritis">ton/tahun, Permen LH No. 5</div>${rinci}`;
-  }
   const pita = key === "ispu" ? ISPU_KAT.map(([batas, , col]) => [batas, col])
     : key === "aqi" ? AQI_KAT.map(([batas, , col]) => [batas, col])
-    // Dua pita saja, dipisah di NOL. Itu satu-satunya batas yang punya dasar.
-    : parDT ? [[0, "#ff4c4c"], [Infinity, "#4cff4c"]]
     : null;
   const baku = bakuMutuLayer(key, !!pd.meta.daily);
   // AOD memang tak bersatuan, tapi sumbu tanpa keterangan sama sekali bikin
@@ -1913,10 +1683,7 @@ async function restoreFromHash() {
   const p = new URLSearchParams(h);
   const l = p.get("l");
   if (l && catalog.layers[l] && l !== activeLayer) {
-    // Layer daya tampung dari link dibagikan tetap lewat gerbang, kalau tidak
-    // ?l=dt_... jadi jalan pintas melewati sandi.
-    if (isLayerDT(l) && !(await mintaSandiDT())) { /* batal -> biarkan layer awal */ }
-    else {
+    {
       if (BASE_OF[l] && stratoAvailable()) {   // layer versi strato -> aktifkan level dulu
         mapLevel = "strato";
         applyLevelUI();
@@ -1946,7 +1713,7 @@ async function restoreFromHash() {
 async function shareCurrent() {
   updateHash();
   const url = location.href;
-  const data = { title: "Kertas Cuaca", text: "Lihat cuaca di Kertas Cuaca", url };
+  const data = { title: "CESGS Aether", text: "Lihat kualitas udara di CESGS Aether", url };
   try {
     if (navigator.share) { await navigator.share(data); return; }
     await navigator.clipboard.writeText(url);
@@ -1981,8 +1748,13 @@ document.addEventListener("fullscreenchange", () => {
 });
 
 // Kartu Tentang (modal)
-function openAbout() { $("about-overlay")?.classList.add("show"); }
-function closeAbout() { $("about-overlay")?.classList.remove("show"); }
+function setAbout(on) {
+  const box = $("about-overlay"); if (!box) return;
+  box.classList.toggle("show", on);
+  box.setAttribute("aria-hidden", on ? "false" : "true");
+}
+function openAbout() { setAbout(true); }
+function closeAbout() { setAbout(false); }
 
 // ================= SEARCH KOTA/KABUPATEN =================
 let places = null, placesLoading = null;
@@ -2093,10 +1865,6 @@ const CITY_UNIT = {
   pm25: { u: UGM, d: 0 }, pm10: { u: UGM, d: 0 }, co: { u: UGM, d: 0 },
   no2: { u: UGM, d: 1 }, so2: { u: UGM, d: 1 }, o3: { u: UGM, d: 0 },
   aod: { u: "", d: 2 }, pbl: { u: "m", d: 0 },
-  // Daya tampung dibaca dalam RIBU ton/tahun. Angka aslinya puluhan ribu sampai
-  // jutaan, terlalu panjang untuk label yang menumpuk di bawah nama kota.
-  dt_pm25: { u: "t/th", d: 0, bagi: 1000, sfx: "K" }, dt_pm10: { u: "t/th", d: 0, bagi: 1000, sfx: "K" },
-  dt_so2: { u: "t/th", d: 0, bagi: 1000, sfx: "K" }, dt_no2: { u: "t/th", d: 0, bagi: 1000, sfx: "K" },
   wind_surface: { u: "kt", d: 0 },
   rain_surface: { u: "mm", d: 1 },
   rain_accum_surface: { u: "mm", d: 0 },
@@ -2110,7 +1878,6 @@ const CITY_UNIT = {
 // Untuk parameter Kertas Emisi, kunci layer SAMA dengan kunci variabelnya.
 const CITY_VAR = { ispu: "ispu", pm25: "pm25", pm10: "pm10", co: "co", no2: "no2",
                    so2: "so2", o3: "o3", aod: "aod", pbl: "pbl",
-                   dt_pm25: "dt_pm25", dt_pm10: "dt_pm10", dt_so2: "dt_so2", dt_no2: "dt_no2",
                    wind_surface: "wind", rain_surface: "rain", temp_surface: "temp",
                    humidity_surface: "humidity", cloud_surface: "cloud",
                    pressure_surface: "pressure", storm_potential: "cape",
@@ -2406,10 +2173,15 @@ function openFirePopup(p) {
   const below = map.latLngToContainerPoint(latlng).y < 160;
   const html = `<div class="fire-pop"><b>Titik api kuat</b><br>` +
     `FRP ${p.f} MW · keyakinan ${_CONF_TEKS[p.c] || p.c}<br>` +
-    `${fmtWaktuWIB(p.t)}${p.s ? " · " + p.s : ""}</div>`;
+    `${fmtWaktuWIB(p.t)}${p.s ? " · " + p.s : ""}` +
+    `<button type="button" class="asap-btn"><span class="material-symbols-outlined">air</span>Lihat arah asap</button></div>`;
   const pop = L.popup({ className: below ? "fire-popup fire-popup-below" : "fire-popup",
     autoPan: true, autoPanPadding: [24, 24] })
     .setLatLng(latlng).setContent(html).openOn(map);
+  pop.getElement()?.querySelector(".asap-btn")?.addEventListener("click", () => {
+    map.closePopup(pop);
+    bukaAsap(p.la, p.lo);
+  });
   if (below) {
     const wrap = pop.getElement() && pop.getElement().querySelector(".leaflet-popup-content-wrapper");
     const h = wrap ? wrap.offsetHeight : 64;
@@ -2429,10 +2201,252 @@ function toggleFire() {
     loadFire().then(() => { if (!fireOn) return; setupFireSlider(); drawFire(); });
   } else {
     if (fireGroup) { fireGroup.clearLayers(); map.removeLayer(fireGroup); }
+    tutupAsap();
     if (note) note.classList.remove("show", "open");
     if (box) box.hidden = true;
   }
   updateHash();
+}
+
+
+// ================= ARAH ASAP (lintasan asap dari titik api) =================
+// Dari satu titik api, posisi asap digeser mengikuti angin 10 m ramalan CAMS
+// sedikit demi sedikit, mulai dari JAM YANG TAMPIL di slider, sampai 48 jam
+// atau sampai keluar peta. Sembilan lintasan, satu di tengah dan delapan dari
+// titik yang sedikit bergeser, jadi terbentuk KIPAS. Kipas sempit berarti
+// arahnya yakin, kipas lebar berarti kurang pasti. Satu garis tunggal akan
+// terlihat lebih pasti daripada kenyataannya.
+// Anginnya dari deret pd_angin_u dan pd_angin_v, bukan dari berkas velocity
+// JSON animasi partikel, yang 1,8 MB per jam. Dua deret itu baru dimuat waktu
+// fitur ini pertama kali dipakai.
+const ASAP_JAM = 48;              // panjang lintasan
+const ASAP_DT_MNT = 15;           // langkah integrasi
+const ASAP_PENANDA_JAM = 6;       // penanda jam di garis tengah
+const ASAP_KIPAS_DEG = 0.12;      // jarak titik awal lintasan pinggir, ~13 km
+// Kota dianggap DILEWATI kalau garis tengah sedekat ini dari titik acuannya.
+// Acuannya pusat kabupaten dan kota, rata rata berjarak sekitar 60 km, jadi
+// radius yang lebih kecil membuat banyak wilayah yang jelas dilewati terlewat.
+const ASAP_KOTA_KM = 35;
+// Status Arah Asap dideklarasikan di atas, dekat fireData, lihat catatannya di sana.
+
+function _jarakKm(la1, lo1, la2, lo2) {
+  const r = Math.PI / 180, dla = (la2 - la1) * r, dlo = (lo2 - lo1) * r;
+  const a = Math.sin(dla / 2) ** 2 + Math.cos(la1 * r) * Math.cos(la2 * r) * Math.sin(dlo / 2) ** 2;
+  return 6371 * 2 * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+const _ARAH8 = ["utara", "timur laut", "timur", "tenggara", "selatan", "barat daya", "barat", "barat laut"];
+function _arahKe(la1, lo1, la2, lo2) {
+  const r = Math.PI / 180;
+  const y = Math.sin((lo2 - lo1) * r) * Math.cos(la2 * r);
+  const x = Math.cos(la1 * r) * Math.sin(la2 * r) - Math.sin(la1 * r) * Math.cos(la2 * r) * Math.cos((lo2 - lo1) * r);
+  const deg = (Math.atan2(y, x) / r + 360) % 360;
+  return _ARAH8[Math.round(deg / 45) % 8];
+}
+
+// Angin di satu titik dan satu saat, bilinear di ruang, linear di waktu.
+// Balik null kalau di luar domain atau di luar rentang waktu data.
+function _anginDi(pu, pv, T, lat, lon, tms) {
+  const { nx, ny, west, east, north, south, scale } = pu.meta;
+  if (lon < west || lon > east || lat < south || lat > north) return null;
+  if (tms < T[0] || tms > T[T.length - 1]) return null;
+  let i = 0;
+  while (i < T.length - 2 && T[i + 1] <= tms) i++;
+  const ft = T[i + 1] > T[i] ? (tms - T[i]) / (T[i + 1] - T[i]) : 0;
+  const fx = (lon - west) / ((east - west) / (nx - 1));
+  const fy = (north - lat) / ((north - south) / (ny - 1));
+  const x0 = Math.min(nx - 2, Math.floor(fx)), y0 = Math.min(ny - 2, Math.floor(fy));
+  const tx = fx - x0, ty = fy - y0;
+  const bil = (arr, t) => {
+    const b = t * nx * ny;
+    return ((1 - tx) * (1 - ty) * arr[b + y0 * nx + x0] + tx * (1 - ty) * arr[b + y0 * nx + x0 + 1] +
+            (1 - tx) * ty * arr[b + (y0 + 1) * nx + x0] + tx * ty * arr[b + (y0 + 1) * nx + x0 + 1]) * scale;
+  };
+  const t1 = Math.min(i + 1, T.length - 1);
+  return [bil(pu.arr, i) * (1 - ft) + bil(pu.arr, t1) * ft,
+          bil(pv.arr, i) * (1 - ft) + bil(pv.arr, t1) * ft];
+}
+
+// Satu lintasan, Runge-Kutta orde dua (titik tengah). Tiap titik [lat, lon, ms].
+function _lintasan(pu, pv, T, lat, lon, t0) {
+  const dt = ASAP_DT_MNT * 60, n = ASAP_JAM * 60 / ASAP_DT_MNT;
+  const geser = (la, lo, w, detik) => [
+    la + (w[1] * detik) / 111320,
+    lo + (w[0] * detik) / (111320 * Math.cos(la * Math.PI / 180)),
+  ];
+  const jalur = [[lat, lon, t0]];
+  let la = lat, lo = lon, t = t0;
+  for (let k = 0; k < n; k++) {
+    const w1 = _anginDi(pu, pv, T, la, lo, t);
+    if (!w1) break;
+    const [lam, lom] = geser(la, lo, w1, dt / 2);
+    const w2 = _anginDi(pu, pv, T, lam, lom, t + (dt / 2) * 1000);
+    if (!w2) break;
+    [la, lo] = geser(la, lo, w2, dt);
+    t += dt * 1000;
+    jalur.push([la, lo, t]);
+  }
+  return jalur;
+}
+
+function _isiKartuAsap(html) {
+  const c = $("asap-card"); if (!c) return;
+  c.querySelector(".asap-isi").innerHTML = html;
+  c.classList.add("show");
+}
+
+function bukaAsap(lat, lon) {
+  asapTitik = { lat, lon };
+  asapPasBingkai = true;
+  if (!asapGroup) asapGroup = L.layerGroup([], { pane: "asap" }).addTo(map);
+  _isiKartuAsap('<p class="asap-muat">Menghitung arah asap…</p>');
+  gambarAsap();
+}
+function tutupAsap() {
+  asapTitik = null;
+  asapToken++;
+  if (asapGroup) asapGroup.clearLayers();
+  $("asap-card")?.classList.remove("show");
+}
+// Slider bisa digeser cepat, jadi hitung ulangnya ditunda sampai geserannya reda.
+function jadwalAsap() { clearTimeout(asapTimer); asapTimer = setTimeout(gambarAsap, 180); }
+
+async function gambarAsap() {
+  if (!asapTitik) return;
+  const token = ++asapToken;
+  const { lat, lon } = asapTitik;
+  let pu, pv;
+  try {
+    [pu, pv] = await Promise.all([loadSeries("angin_u"), loadSeries("angin_v")]);
+  } catch (e) {
+    console.warn("deret angin tak ada", e);
+    if (token === asapToken) _isiKartuAsap('<p class="asap-muat">Data angin untuk arah asap belum tersedia di kiriman ini.</p>');
+    return;
+  }
+  if (token !== asapToken) return;
+  const T = pu.meta._T || (pu.meta._T = pu.meta.times.map((x) => Date.parse(x)));
+  const vt = frames[current] && frames[current].valid_time;
+  let t0 = vt ? Date.parse(vt) : T[0];
+  t0 = Math.max(T[0], Math.min(t0, T[T.length - 1]));
+
+  // Kipas, garis tengah dulu lalu delapan pinggir.
+  const semua = [_lintasan(pu, pv, T, lat, lon, t0)];
+  for (let k = 0; k < 8; k++) {
+    const a = (k * Math.PI) / 4;
+    semua.push(_lintasan(pu, pv, T, lat + ASAP_KIPAS_DEG * Math.sin(a),
+                         lon + ASAP_KIPAS_DEG * Math.cos(a) / Math.cos(lat * Math.PI / 180), t0));
+  }
+  const tengah = semua[0];
+
+  asapGroup.clearLayers();
+  for (const j of semua.slice(1)) {
+    if (j.length > 1) L.polyline(j.map((p) => [p[0], p[1]]), { pane: "asap", color: "#ffffff",
+      weight: 1.2, opacity: 0.45, interactive: false }).addTo(asapGroup);
+  }
+  if (tengah.length > 1) {
+    const ll = tengah.map((p) => [p[0], p[1]]);
+    L.polyline(ll, { pane: "asap", color: "#10131c", weight: 6, opacity: 0.45, interactive: false }).addTo(asapGroup);
+    L.polyline(ll, { pane: "asap", color: "#ffffff", weight: 3, opacity: 0.95, interactive: false }).addTo(asapGroup);
+    // Penanda jam. Kalau angin melemah, beberapa penanda jatuh berdekatan dan
+    // tulisannya bertumpuk. Yang terlalu dekat dengan penanda sebelumnya dilewati.
+    const tiap = (ASAP_PENANDA_JAM * 60) / ASAP_DT_MNT;
+    let akhir = [lat, lon];
+    for (let k = tiap; k < tengah.length; k += tiap) {
+      if (_jarakKm(akhir[0], akhir[1], tengah[k][0], tengah[k][1]) < 30) continue;
+      akhir = [tengah[k][0], tengah[k][1]];
+      const jam = Math.round((k * ASAP_DT_MNT) / 60);
+      L.marker([tengah[k][0], tengah[k][1]], { pane: "asap", interactive: false,
+        icon: L.divIcon({ className: "asap-jam", html: `<span>+${jam} j</span>`, iconSize: [0, 0] }) }).addTo(asapGroup);
+    }
+  }
+  L.circleMarker([lat, lon], { pane: "asap", radius: 7, weight: 2, color: "#ffffff",
+    fill: false, interactive: false }).addTo(asapGroup);
+  // Baru dibuka, peta didekatkan ke seluruh kipas. Waktu slider digeser tidak,
+  // supaya bingkai yang sedang dibaca orang tidak melompat lompat.
+  if (asapPasBingkai) {
+    asapPasBingkai = false;
+    const titik = semua.flat().map((p) => [p[0], p[1]]);
+    if (titik.length > 1) {
+      const hp = window.matchMedia("(max-width: 640px)").matches;
+      map.fitBounds(L.latLngBounds(titik).pad(0.15), {
+        // Di HP kartu Arah Asap menutup sepertiga atas layar, jadi lintasan
+        // dibingkai di bawahnya. Di layar lebar kartu dan kolom kanan di kanan.
+        paddingTopLeft: hp ? [90, 330] : [260, 90],
+        paddingBottomRight: hp ? [20, 200] : [560, 150],
+        maxZoom: 7, animate: true });
+    }
+  }
+
+  // ---- Kartu, bahasa awam ----
+  const kota = await loadPlaces().catch(() => []);
+  if (token !== asapToken) return;
+  let dekat = null, dekatKm = Infinity;
+  for (const c of kota) {
+    const d = _jarakKm(lat, lon, c.lat, c.lon);
+    if (d < dekatKm) { dekatKm = d; dekat = c; }
+  }
+  const namaDekat = dekat ? dekat.n.replace(/^(Kabupaten|Kota) /, "") : "";
+
+  if (tengah.length < 5) {
+    _isiKartuAsap(`<p>Untuk jam ini arah asap dari titik api dekat <b>${namaDekat}</b> tidak bisa dihitung. ` +
+      `Datanya belum atau sudah tidak mencakup jam tersebut.</p>`);
+    return;
+  }
+  const i24 = Math.min(tengah.length - 1, (24 * 60) / ASAP_DT_MNT);
+  const jamNyata = Math.round(((tengah[i24][2] - t0) / 3600e3));
+  const km = Math.round(_jarakKm(lat, lon, tengah[i24][0], tengah[i24][1]) / 10) * 10;
+  const arah = _arahKe(lat, lon, tengah[i24][0], tengah[i24][1]);
+  // Lebar kipas di jam yang sama, jarak terjauh ujung pinggir ke ujung tengah.
+  let lebar = 0;
+  for (const j of semua.slice(1)) {
+    const p = j[Math.min(j.length - 1, i24)];
+    lebar = Math.max(lebar, _jarakKm(p[0], p[1], tengah[i24][0], tengah[i24][1]));
+  }
+  const yakin = lebar < 60 ? "Kipasnya sempit, jadi arahnya cukup yakin."
+    : lebar < 150 ? "Kipasnya agak melebar, arahnya bisa bergeser."
+    : "Kipasnya melebar, arahnya kurang pasti.";
+  const ringkas = km < 20
+    ? `Asap dari titik api dekat <b>${namaDekat}</b> diperkirakan <b>tertahan di sekitar sumbernya</b>, anginnya lemah. ${yakin}`
+    : `Asap dari titik api dekat <b>${namaDekat}</b> diperkirakan bergerak ke <b>${arah}</b>, ` +
+      `sekitar <b>${km} km</b> dalam ${jamNyata} jam. ${yakin}`;
+
+  // Kota yang dilewati garis tengah, satu kali per kota, urut waktu.
+  const lewat = [];
+  for (const c of kota) {
+    let best = Infinity, bi = -1;
+    for (let k = 0; k < tengah.length; k += 2) {
+      const d = _jarakKm(tengah[k][0], tengah[k][1], c.lat, c.lon);
+      if (d < best) { best = d; bi = k; }
+    }
+    // Wilayah tempat api itu sendiri sudah disebut di kalimat pertama, jadi tak diulang.
+    if (c === dekat) continue;
+    if (best <= ASAP_KOTA_KM && tengah[bi][2] - t0 >= 3600e3) lewat.push({ c, t: tengah[bi][2] });
+  }
+  lewat.sort((a, b) => a.t - b.t);
+  let pdIspu = null;
+  try { pdIspu = await loadSeries("ispu"); } catch (e) { /* ISPU opsional di kartu */ }
+  if (token !== asapToken) return;
+  const baris = lewat.slice(0, 6).map(({ c, t }) => {
+    const jam = Math.round((t - t0) / 3600e3);
+    const kapan = new Date(t).toLocaleString("id-ID", { timeZone: "Asia/Jakarta",
+      weekday: "short", hour: "2-digit", minute: "2-digit" }).replace(".", ":");
+    let ispu = "";
+    if (pdIspu) {
+      const i = nearestIndex(pdIspu.meta.times, new Date(t).toISOString());
+      const v = Math.round(sampleSeries(pdIspu, c.lat, c.lon)[i]);
+      if (isFinite(v)) {
+        const [, nama, warna] = ispuKategori(v);
+        ispu = `<span class="asap-ispu"><i style="background:${warna}"></i>ISPU ${v} ${nama}</span>`;
+      }
+    }
+    return `<div class="asap-kota"><span class="asap-kota-n">${c.n.replace(/^(Kabupaten|Kota) /, "")}</span>` +
+      `<span class="asap-kota-t">+${jam} jam · ${kapan} WIB</span>${ispu}</div>`;
+  }).join("");
+  const daftar = baris
+    ? `<div class="asap-sub">Wilayah yang dilewati</div>${baris}`
+    : `<div class="asap-sub">Tidak ada pusat kota atau kabupaten lain yang dilewati dalam ${ASAP_JAM} jam.</div>`;
+  _isiKartuAsap(`<p class="asap-ringkas">${ringkas}</p>${daftar}` +
+    `<p class="asap-catatan">Perkiraan dari angin permukaan model CAMS, mulai jam yang tampil di slider. ` +
+    `Asap dari api yang sangat besar bisa naik lebih tinggi dan bergerak berbeda. Bukan peringatan resmi.</p>`);
 }
 
 // ================= ZONA ITCZ (indikasi model GFS) =================
@@ -2798,10 +2812,6 @@ async function init() {
         // Pilih variabel TIDAK menutup dropdown; hanya tombol panah "Parameter" yg menutup.
         btn.addEventListener("click", async () => {
           if (btn.classList.contains("disabled")) return;   // diredupkan (mis. di strato)
-          if (isLayerDT(key)) {                             // gerbang: tiap klik minta sandi lagi
-            const boleh = await mintaSandiDT();
-            if (!boleh) return;                             // batal / sandi salah -> tak pindah
-          }
           if (playing) togglePlay();
           activeBase = key;
           setActiveLayer(resolveLayer(key));
@@ -2812,12 +2822,6 @@ async function init() {
       btn.classList.toggle("active", key === activeLayer);
     });
     renderLegend(activeLayer);
-    // Tombol Paparan ada di KONTROL KANAN (bukan bilah layer), tapi memilih layer 'paparan'.
-    const _pb = $("paparan-btn");
-    if (_pb) {
-      _pb.classList.toggle("disabled", !cat.layers.paparan);
-      _pb.classList.toggle("active", activeLayer === "paparan");
-    }
 
     // Medan angin per-waktu — partikel dipakai di SEMUA layer (termasuk hujan).
     // Kertas Emisi tak punya layer angin sendiri. Velocity ditempelkan ke tiap frame
@@ -2826,8 +2830,6 @@ async function init() {
       (L.frames || []).forEach((f) => { if (f.velocity_json) windVelByTime[f.valid_time] = f.velocity_json; }));
 
     setupLevelSelect();   // hidupkan dropdown LEVEL kalau data strato ada
-    if (!dataMissing) loadPeringatan();   // banner peringatan kualitas udara
-    if (!dataMissing) loadPaparan();      // banner populasi terpapar (layer ISPU)
 
     // Bingkai tampilan = kotak inti (VIEW_CORE) yang diperlebar pada sumbu yang
     // perlu hingga RASIONYA sama dengan jendela desktop. Efeknya: seluruh wilayah
@@ -2983,20 +2985,8 @@ async function init() {
     window.addEventListener("resize", placeFreshBadge);
     // Dropdown legenda+threshold di banner indikasi siklon.
     $("cyc-note-toggle")?.addEventListener("click", () => $("cyc-note").classList.toggle("open"));
+    $("asap-tutup")?.addEventListener("click", tutupAsap);
     $("itcz-note-toggle")?.addEventListener("click", () => $("itcz-note").classList.toggle("open"));
-    // Tombol "Kualitas Udara" -> buka/tutup sidebar berisi peringatan + populasi terpapar.
-    $("info-toggle")?.addEventListener("click", () => {
-      if (infoOpen()) { tutupSidebar(); }
-      else openInfo();
-    });
-    // Tombol Paparan (kontrol kanan) -> pilih layer 'paparan', seperti tombol bilah layer.
-    $("paparan-btn")?.addEventListener("click", () => {
-      const b = $("paparan-btn");
-      if (!b || b.classList.contains("disabled")) return;
-      if (playing) togglePlay();
-      activeBase = "paparan";
-      setActiveLayer(resolveLayer("paparan"));
-    });
 
     // Pencarian kota/kabupaten
     const sbox = $("search-box"), sin = $("search-input");
@@ -3047,12 +3037,17 @@ if ("serviceWorker" in navigator) {
 
 // Seksi bilah bawah HP. `sel` = pemilih tombol ASLI yang diwakili.
 const LB_SEKSI = [
-  // dd-btn dikeluarkan dari Parameter, ia punya seksinya sendiri di bawah.
-  { judul: "Parameter", sel: ".layer-btn[data-layer]:not(.dd-btn)" },
-  { judul: "Daya Tampung", sel: ".layer-btn.dd-btn" },
+  { judul: "Parameter", sel: ".layer-btn[data-layer]" },
+  // Di HP kolom kanan diciutkan, dan tombol pembuka menunya disembunyikan
+  // bilah bawah. Di Kertas Emisi akibatnya Titik Api dan Bagikan tak bisa
+  // dijangkau sama sekali dari HP. Di Aether dua tombol itu diwakili di sini.
+  { judul: "Fitur", sel: "#api-toggle, #share-btn" },
 ];
 // Warisan Kertas Cuaca (siklon, ITCZ, monsun, kondisi kota) memang tak berlaku
-// di Kertas Emisi dan sudah disembunyikan CSS, jadi tak diikutkan.
+// di peta polusi dan sudah disembunyikan CSS, jadi tak diikutkan.
+// Banner titik api TIDAK dipindah ke tumpukan kiri bawah. Tumpukan itu dirancang
+// untuk Kertas Cuaca, di sini dia menimpa slider waktu. Posisinya di HP diatur
+// CSS, menempel kanan sejajar chip parameter.
 const KET_SUMBER = [];
 
 /* ==================================================================

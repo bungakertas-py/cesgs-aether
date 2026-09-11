@@ -3,32 +3,32 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <title>Kertas Emisi, Peta Kualitas Udara Indonesia</title>
+  <title>CESGS Aether — Peta Kualitas Udara Indonesia</title>
   <meta name="description" content="Indeks Standar Pencemar Udara dan sebaran PM₂.₅, PM₁₀, CO, NO₂, SO₂, O₃, serta kabut asap untuk seluruh Indonesia. Klik lokasimu untuk grafik per jam." />
-  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="icon" type="image/png" href="cesgs-mark.png" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <meta name="theme-color" content="#fcf8f8" />
+  <meta name="theme-color" content="#0a1018" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-title" content="Kertas Emisi" />
+  <meta name="apple-mobile-web-app-title" content="CESGS Aether" />
   <link rel="apple-touch-icon" href="icon-192.png" />
   <!-- Open Graph / kartu preview saat link dibagikan -->
   <meta property="og:type" content="website" />
-  <meta property="og:site_name" content="Kertas Emisi" />
-  <meta property="og:title" content="Kertas Emisi, peta kualitas udara interaktif Indonesia" />
+  <meta property="og:site_name" content="CESGS Aether" />
+  <meta property="og:title" content="CESGS Aether — Peta kualitas udara interaktif Indonesia" />
   <meta property="og:description" content="Indeks Standar Pencemar Udara dan sebaran PM₂.₅, PM₁₀, CO, NO₂, SO₂, O₃, serta kabut asap untuk seluruh Indonesia. Klik lokasimu untuk grafik per jam." />
-  <meta property="og:url" content="https://bungakertas-py.github.io/kertas-emisi/frontend/index.html" />
-  <meta property="og:image" content="https://bungakertas-py.github.io/kertas-emisi/frontend/og-image.png" />
+  <meta property="og:url" content="https://bungakertas-py.github.io/cesgs-aether/frontend/index.html" />
+  <meta property="og:image" content="https://bungakertas-py.github.io/cesgs-aether/frontend/og-image.png" />
   <meta property="og:image:width" content="2400" />
   <meta property="og:image:height" content="1260" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Kertas Emisi — Peta kualitas udara interaktif Indonesia" />
-  <meta name="twitter:description" content="Angin, hujan, suhu, awan, dan tekanan untuk seluruh Indonesia. Klik lokasimu untuk prakiraan detail per jam." />
-  <meta name="twitter:image" content="https://bungakertas-py.github.io/kertas-emisi/frontend/og-image.png" />
+  <meta name="twitter:title" content="CESGS Aether — Peta kualitas udara interaktif Indonesia" />
+  <meta name="twitter:description" content="Indeks Standar Pencemar Udara dan sebaran PM₂.₅, PM₁₀, CO, NO₂, SO₂, O₃, serta kabut asap untuk seluruh Indonesia. Klik lokasimu untuk grafik per jam." />
+  <meta name="twitter:image" content="https://bungakertas-py.github.io/cesgs-aether/frontend/og-image.png" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet-velocity@1.7.0/dist/leaflet-velocity.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -42,41 +42,32 @@
       <div class="ui-top">
         <!-- kiri: layer + model -->
         <div class="col">
-          <!-- brand + panah pindah ke Kertas Fenomena (kontainer saudara, geser ke kanan) -->
+          <!-- brand + panah ke dua aplikasi CESGS lain (kontainer saudara, geser ke kanan) -->
           <div class="brand-row">
             <div class="panel brand">
-              <svg class="brand-logo" viewBox="0 0 48 48" width="38" height="38" aria-hidden="true">
-                <g transform="translate(24 26.5) scale(0.88)" stroke="#1c1b1b" stroke-width="2" stroke-linejoin="round">
-                  <g fill="#e64980">
-                    <ellipse cx="0" cy="-12" rx="8.5" ry="12"/>
-                    <ellipse cx="0" cy="-12" rx="8.5" ry="12" transform="rotate(120)"/>
-                    <ellipse cx="0" cy="-12" rx="8.5" ry="12" transform="rotate(240)"/>
-                  </g>
-                  <circle r="4.5" fill="#ffd43b"/>
-                </g>
-              </svg>
+              <img class="brand-logo" src="cesgs-mark.png" width="38" height="38" alt="CESGS" />
               <div class="brand-text">
-                <strong>Kertas Emisi</strong>
-                <span>Sebaran Polutan · Farras Ghaly</span>
+                <strong>CESGS Aether</strong>
+                <span>Membaca Gerak Udara</span>
               </div>
-              <button id="about-btn" class="brand-info" title="Tentang" aria-label="Tentang"><span class="material-symbols-outlined">info</span></button>
-              <button id="nav-arrow" class="nav-arrow" aria-label="Aplikasi lain" title="Aplikasi lain"><span class="material-symbols-outlined">chevron_right</span></button>
+              <button id="about-btn" class="brand-info" aria-label="Tentang aplikasi ini" title="Tentang"><span class="material-symbols-outlined">info</span></button>
+              <button id="nav-arrow" class="nav-arrow" aria-label="Aplikasi CESGS lain" title="Aplikasi CESGS lain"><span class="material-symbols-outlined">chevron_right</span></button>
             </div>
-            <!-- Kontainer saudara: dua aplikasi lain, tersembunyi sampai panah ditekan. -->
+            <!-- Kontainer saudara: dua aplikasi CESGS lain, tersembunyi sampai panah ditekan. -->
             <div class="sibling-links">
-              <a class="sibling-link" href="https://bungakertas-py.github.io/bungakertas-signature/frontend/index.html" title="Buka Kertas Cuaca (peta cuaca interaktif Indonesia)">
+              <a class="sibling-link" href="https://bungakertas-py.github.io/cesgs-nimbus/" title="Buka CESGS Nimbus (peta cuaca interaktif Indonesia)">
                 <span class="material-symbols-outlined pl-ico">partly_cloudy_day</span>
                 <span class="pl-txt">
-                  <strong>Kertas Cuaca</strong>
-                  <span>Angin, hujan, suhu, tekanan</span>
+                  <strong>CESGS Nimbus</strong>
+                  <span>Peta cuaca interaktif Indonesia</span>
                 </span>
                 <span class="material-symbols-outlined pl-go">arrow_forward</span>
               </a>
-              <a class="sibling-link" href="https://bungakertas-py.github.io/kertas-fenomena/" title="Buka Kertas Fenomena (peta iklim ENSO dan IOD)">
+              <a class="sibling-link" href="https://bungakertas-py.github.io/cesgs-baruna/" title="Buka CESGS Baruna (peta iklim ENSO dan IOD)">
                 <span class="material-symbols-outlined pl-ico">waves</span>
                 <span class="pl-txt">
-                  <strong>Kertas Fenomena</strong>
-                  <span>El Nino, La Nina, Dipol Samudra Hindia</span>
+                  <strong>CESGS Baruna</strong>
+                  <span>Pemantau iklim laut Indonesia</span>
                 </span>
                 <span class="material-symbols-outlined pl-go">arrow_forward</span>
               </a>
@@ -135,6 +126,17 @@
             </button>
           </div>
 
+          <!-- Kartu ARAH ASAP: lintasan asap dari satu titik api, dibuka lewat
+               tombol di popup titik api. Isinya diisi app.js (gambarAsap). -->
+          <div id="asap-card" class="asap-card" role="region" aria-label="Arah asap">
+            <div class="asap-top">
+              <span class="material-symbols-outlined">air</span>
+              <b>Arah Asap</b>
+              <button type="button" class="asap-tutup" id="asap-tutup" aria-label="Tutup arah asap"><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <div class="asap-isi"></div>
+          </div>
+
           </div>
 
           <div class="layer-bar">
@@ -185,20 +187,6 @@
             <button id="panel-toggle" class="panel-toggle" aria-label="Sembunyikan panel" title="Sembunyikan panel">
               <span class="material-symbols-outlined">chevron_left</span>
             </button>
-          </div>
-
-          <!-- DAYA DUKUNG: daya tampung udara per sel (Permen LH No. 5). Pilihan
-               parameternya mendatar, karena cuma empat dan semuanya pendek.
-               Tombolnya sengaja memakai kelas .layer-btn juga, jadi seluruh
-               mesin pemilih layer yang sudah ada langsung berlaku. -->
-          <div class="panel daya-dukung">
-            <div class="label-caps">DAYA TAMPUNG</div>
-            <div class="dd-row">
-              <button class="layer-btn dd-btn" data-layer="dt_pm25" data-tip="Daya tampung PM2,5">PM<sub>2.5</sub></button>
-              <button class="layer-btn dd-btn" data-layer="dt_pm10" data-tip="Daya tampung PM10">PM<sub>10</sub></button>
-              <button class="layer-btn dd-btn" data-layer="dt_so2" data-tip="Daya tampung SO2">SO<sub>2</sub></button>
-              <button class="layer-btn dd-btn" data-layer="dt_no2" data-tip="Daya tampung NO2">NO<sub>2</sub></button>
-            </div>
           </div>
 
           <!-- HP-only: pemilih LEVEL, di bawah Parameter, mekanisme buka-tutup sama.
@@ -256,8 +244,6 @@
           <button id="cyclone-toggle" class="icon-btn" aria-label="Deteksi siklon + jalur prakiraan" data-tip="Siklon"><span class="material-symbols-outlined">cyclone</span></button>
           <button id="itcz-toggle" class="icon-btn" aria-label="Zona pertemuan angin (ITCZ)" data-tip="ITCZ"><span class="material-symbols-outlined">looks</span></button>
           <button id="api-toggle" class="icon-btn" aria-label="Titik panas satelit VIIRS (FIRMS)" data-tip="Titik Api"><span class="material-symbols-outlined">local_fire_department</span></button>
-          <button id="info-toggle" class="icon-btn" aria-label="Kualitas udara: peringatan &amp; populasi terpapar" data-tip="Kualitas Udara"><span class="material-symbols-outlined">groups</span></button>
-          <button id="paparan-btn" class="icon-btn" aria-label="Peta paparan penduduk: jiwa di sel yang ISPU-nya Tidak Sehat" data-tip="Paparan"><span class="material-symbols-outlined">person_pin_circle</span></button>
           <div class="phenom-wrap">
             <button id="mon-toggle" class="icon-btn" aria-label="Fenomena atmosfer" data-tip="Fenomena"><span class="material-symbols-outlined">explore</span></button>
             <div id="phenom-panel" class="phenom-panel"></div>
@@ -336,32 +322,21 @@
     </div>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-    <!-- Gerbang sandi layer Daya Tampung -->
-    <div id="pw-overlay" class="about-overlay">
-      <div class="pw-card">
-        <span class="about-tag">TERKUNCI</span>
-        <h2 class="pw-title">Layer Daya Tampung</h2>
-        <p class="pw-note">Masukkan sandi untuk menampilkan layer ini.</p>
-        <input id="pw-input" class="pw-input" type="password" autocomplete="off"
-               spellcheck="false" placeholder="Sandi" aria-label="Sandi layer daya tampung" />
-        <div id="pw-err" class="pw-err" hidden>Sandi salah.</div>
-        <div class="pw-act">
-          <button id="pw-cancel" type="button" class="pw-btn">Batal</button>
-          <button id="pw-ok" type="button" class="pw-btn pw-btn-primary">Buka</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Kartu Tentang -->
-    <div id="about-overlay" class="about-overlay">
+    <!-- Kartu Tentang. Identitas lembaga, sumber data, dan penyangkalan.
+         Sengaja tanpa nama perorangan, ini produk lembaga. -->
+    <div id="about-overlay" class="about-overlay" role="dialog" aria-modal="true" aria-labelledby="about-title" aria-hidden="true">
       <div class="about-card">
         <button id="about-close" class="about-close" aria-label="Tutup"><span class="material-symbols-outlined">close</span></button>
-        <div class="about-photo"><img src="farras.png" alt="Farras Ghaly" /></div>
+        <div class="about-logo"><img src="cesgs-logo.png" alt="CESGS, Center for Environmental, Social, and Governance Studies" /></div>
         <div class="about-body">
           <span class="about-tag">TENTANG</span>
-          <h2 class="about-name">Farras Ghaly</h2>
-          <p class="about-intro">Hi, I'm Farras Ghaly. I built Kertas Emisi to turn free global atmospheric composition models into a pollution map anyone can actually read.</p>
-          <div class="about-quote">"vibe coded this, don't ask me how it works"</div>
+          <h2 class="about-name" id="about-title">CESGS Aether</h2>
+          <p class="about-intro">Kualitas udara Indonesia lima hari ke depan, diolah dari model komposisi atmosfer global terbuka dan disajikan supaya bisa dibaca tanpa latar ilmu atmosfer. Dikembangkan CESGS Universitas Airlangga.</p>
+          <div class="about-meta">
+            <p><span class="material-symbols-outlined">database</span>Sumber data model CAMS Copernicus dan titik api satelit VIIRS NASA FIRMS, terbuka dan gratis.</p>
+            <p><span class="material-symbols-outlined">update</span>Diperbarui otomatis tiap hari pukul 04.00 WIB.</p>
+            <p><span class="material-symbols-outlined">shield</span>Bukan pengumuman resmi. Rujuk KLHK dan BMKG untuk keputusan penting.</p>
+          </div>
         </div>
       </div>
     </div>
@@ -398,25 +373,16 @@
         <div class="sk-bar sk-legend"></div>
       </div>
       <div class="sk-center">
-        <svg class="sk-mark" viewBox="0 0 48 48" width="60" height="60" aria-hidden="true">
-          <g transform="translate(24 26.5) scale(0.88)" stroke="#1c1b1b" stroke-width="2" stroke-linejoin="round">
-            <g fill="#e64980">
-              <ellipse cx="0" cy="-12" rx="8.5" ry="12"/>
-              <ellipse cx="0" cy="-12" rx="8.5" ry="12" transform="rotate(120)"/>
-              <ellipse cx="0" cy="-12" rx="8.5" ry="12" transform="rotate(240)"/>
-            </g>
-            <circle r="4.5" fill="#ffd43b"/>
-          </g>
-        </svg>
-        <div class="sk-load-text mono">Memuat data cuaca…</div>
+        <img class="sk-mark" src="cesgs-mark.png" width="60" height="60" alt="" />
+        <div class="sk-load-text mono">Memuat data udara…</div>
       </div>
     </div>
 
     <div id="loading">Memuat data model…</div>
 
-    <!-- Panel detail titik. Layer polutan memakai popup kecil di titik (openPoint),
-         tapi layer daya tampung isinya terlalu panjang untuk popup, jadi khusus
-         layer itu detailnya masuk ke sidebar ini. -->
+    <!-- Panel detail titik. Semua layer memakai popup kecil di titik (openPoint).
+         Sidebar ini warisan Kertas Emisi untuk layer daya tampung, yang tidak ada
+         di CESGS Aether, jadi sekarang tidak pernah terbuka. -->
     <aside id="point-panel">
       <div class="pt-head">
         <div class="pt-head-top">
@@ -435,12 +401,6 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet-velocity@1.7.0/dist/leaflet-velocity.min.js"></script>
-  <!-- Daya Tampung Wilayah: baca banyak format vektor (SHP zip/KMZ via shpjs+JSZip,
-       KML/GeoJSON/WKT langsung) + reproyeksi (proj4) + digitasi manual -->
-  <script src="https://unpkg.com/proj4@2.11.0/dist/proj4.js"></script>
-  <script src="https://unpkg.com/shpjs@6.1.1/dist/shp.min.js"></script>
-  <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="app.js"></script>
-  <script src="wilayah.js"></script>
 </body>
 </html>
