@@ -118,10 +118,28 @@
               <span class="cyc-note-txt" id="api-ringkas">Titik panas VIIRS</span>
             </div>
             <div class="cyc-detail">
-              <div class="api-lead">Titik api KUAT (FRP di atas 100 MW) dari satelit VIIRS, disaring dari jendela 48 jam terakhir. Ini PENGAMATAN (telat sekitar 3 jam), bukan ramalan, dan bisa terlewat bila tertutup awan. Klik titik untuk detail, dan geser slider di atas legenda untuk mempersempit jendela waktu.</div>
+              <div class="api-lead">Titik api KUAT (FRP di atas 100 MW) dari satelit VIIRS yang terdeteksi 24 jam sampai jam yang tampil di slider. Satelit lewat beberapa kali sehari, jadi titik yang lebih pudar adalah deteksi yang lebih lama. Ini PENGAMATAN (telat sekitar 3 jam), bukan ramalan, dan bisa terlewat bila tertutup awan. Untuk jam ramalan yang tampil pengamatan terakhir. Klik titik untuk detail dan arah asapnya.</div>
               <div class="cyc-row"><span class="api-sw" style="background:#a80000"></span><b>Titik api</b><span class="cyc-th">FRP &ge; 100 MW</span></div>
             </div>
             <button type="button" class="cyc-tab" id="api-note-toggle" aria-label="Tampilkan keterangan titik api">
+              <span class="material-symbols-outlined cyc-caret">expand_more</span>
+            </button>
+          </div>
+
+          <!-- Banner GUNUNG API: status resmi PVMBG + gas belerang CAMS. Diisi app.js. -->
+          <div id="gunung-note" class="cyc-note gunung-note">
+            <div class="cyc-note-top">
+              <span class="material-symbols-outlined">volcano</span>
+              <span class="cyc-note-txt" id="gunung-ringkas">Gunung api</span>
+            </div>
+            <div class="cyc-detail">
+              <div class="api-lead">Segitiga menunjukkan status resmi gunung api dari PVMBG, dan lingkaran putus putus radius bahaya yang direkomendasikan. Warna di peta adalah gas belerang dari gunung api di udara dekat permukaan menurut model CAMS, bukan abu. Klik gunung untuk laporan terbarunya.</div>
+              <div class="cyc-row"><span class="gn-sw" style="--gw:#e0241b"></span><b>Awas</b><span class="cyc-th">Level IV</span></div>
+              <div class="cyc-row"><span class="gn-sw" style="--gw:#ff8a00"></span><b>Siaga</b><span class="cyc-th">Level III</span></div>
+              <div class="cyc-row"><span class="gn-sw" style="--gw:#f2c200"></span><b>Waspada</b><span class="cyc-th">Level II</span></div>
+              <div class="cyc-row"><span class="gn-sw" style="--gw:#3fb950"></span><b>Normal</b><span class="cyc-th">Level I</span></div>
+            </div>
+            <button type="button" class="cyc-tab" id="gunung-note-toggle" aria-label="Tampilkan keterangan gunung api">
               <span class="material-symbols-outlined cyc-caret">expand_more</span>
             </button>
           </div>
@@ -169,7 +187,7 @@
                 <span class="material-symbols-outlined">factory</span> <span class="lb-txt">NO<sub>2</sub></span>
               </button>
               <button class="layer-btn" data-layer="so2" data-tip="Sulfur dioksida">
-                <span class="material-symbols-outlined">volcano</span> <span class="lb-txt">SO<sub>2</sub></span>
+                <span class="material-symbols-outlined">cloud</span> <span class="lb-txt">SO<sub>2</sub></span>
               </button>
               <button class="layer-btn" data-layer="o3" data-tip="Ozon permukaan">
                 <span class="material-symbols-outlined">wb_sunny</span> <span class="lb-txt">O<sub>3</sub></span>
@@ -179,6 +197,9 @@
               </button>
               <button class="layer-btn" data-layer="pbl" data-tip="Planetary Boundary Layer Height">
                 <span class="material-symbols-outlined">vertical_align_bottom</span> <span class="lb-txt">PBLH</span>
+              </button>
+              <button class="layer-btn" data-layer="vso2" data-tip="Gas belerang dari gunung api di udara dekat permukaan, diamati satelit lalu diramalkan model CAMS">
+                <span class="material-symbols-outlined">volcano</span> <span class="lb-txt">Gas Gunung Api</span>
               </button>
             </div>
             <button id="layer-next" class="layer-nav" aria-label="Variabel berikutnya"><span class="material-symbols-outlined">chevron_right</span></button>
@@ -281,16 +302,6 @@
 
         <!-- legenda — bawah kanan (legenda ikon kondisi di atas, muncul saat toggle) -->
         <div class="legend-col">
-          <!-- Slider KHUSUS titik api: menyaring hotspot menurut jendela waktu
-               deteksi (jam ke belakang). Kontainer sendiri, DI ATAS legenda bar,
-               tipis & horizontal. Muncul hanya saat toggle Titik Api aktif. -->
-          <div id="fire-slider-box" class="fire-slider-box" hidden>
-            <div class="fsb-top">
-              <span class="material-symbols-outlined fsb-ico">local_fire_department</span>
-              <span class="fsb-label" id="fire-slider-label">48 jam terakhir</span>
-            </div>
-            <input id="fire-slider" class="fire-slider" type="range" min="1" max="48" value="48" step="1" aria-label="Jendela waktu titik api (jam ke belakang)">
-          </div>
           <div class="legend-panel">
             <div class="legend-head mono" id="legend-head">KNOTS</div>
             <div class="legend" id="legend-cells"></div>

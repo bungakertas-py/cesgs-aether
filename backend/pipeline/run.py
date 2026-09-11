@@ -20,6 +20,7 @@ import config as C
 from config import KEEP_PAST_HOURS, LAYERS, OUTPUT_DIR
 import cams
 import firms
+import magma
 from process import (CITY_PLACES, _export_velocity_json, hitung_aqi,
                      hitung_ispu, sampel_kota,
                      write_city_data, write_point_series, write_scalar_frame)
@@ -233,6 +234,8 @@ def main() -> None:
     for key, lay in LAYERS.items():
         if lay["src"] == "turunan":
             continue                          # ISPU dihitung setelah semua parameter siap
+        if lay["src"] == "vulkanik":
+            continue                          # diunduh terpisah, lihat _tulis_vulkanik
         ds = ds_s if lay["src"] == "single" else ds_m
         uu = up if lay["src"] == "single" else up_m
         medan = []
@@ -242,6 +245,8 @@ def main() -> None:
                 a = a * 1e9                       # kg/m3 -> ug/m3
             elif lay["conv"] == "rasio":
                 a = a * rho[i] * 1e9              # kg/kg * kg/m3 -> ug/m3
+            elif lay["conv"] == "nano":
+                a = a * 1e9                       # kg/kg tetap, dipajang per 10^-9
             medan.append(a)
         medan_semua[key] = medan
 
@@ -317,6 +322,10 @@ def main() -> None:
     # Overlay titik panas VIIRS (pengamatan, bukan ramalan). Berdiri sendiri, tak
     # tergantung grid/forecast, jadi kalau gagal pun sisa pipeline tetap terbit.
     _tulis_titik_api()
+    # Status gunung api dari MAGMA PVMBG, sama sifatnya, gagal pun dilewati.
+    _tulis_gunung_api(run)
+    # Gas belerang gunung api, permintaan CAMS tersendiri. Gagal pun dilewati.
+    _tulis_vulkanik(hari, jam_run, run, grid, vel_nama, point_meta)
 
     ds_s.close(); ds_m.close()
     (OUTPUT_DIR / "point_meta.json").write_text(json.dumps(point_meta, indent=2))
@@ -326,6 +335,61 @@ def main() -> None:
     catalog, total = reconcile_and_catalog(run)
     (OUTPUT_DIR / "catalog.json").write_text(json.dumps(catalog, indent=2))
     print(f"\nSelesai. {total} frame, {len(catalog['layers'])} layer -> catalog.json")
+
+
+def _tulis_vulkanik(hari, jam_run, run, grid, vel_nama, point_meta) -> None:
+    """Layer src "vulkanik" (gas belerang gunung api) dari permintaan CAMS sendiri.
+
+    Tidak boleh ikut permintaan gas lain, lihat catatan vso2 di config.py. Langkahnya
+    tiap 3 jam karena cuma itu yang tersedia di lapisan model. Kalau ADS menolak
+    atau apa pun gagal, layer ini dilewati dan sisa pipeline tetap terbit."""
+    for key, lay in LAYERS.items():
+        if lay["src"] != "vulkanik":
+            continue
+        try:
+            lead = [str(h) for h in range(0, C.CAMS["leadtime_max"] + 1, lay["step"])]
+            nc = cams.fetch(hari, jam_run, [lay["cams_var"]], lead=lead, model_level=["137"],
+                            dest=C.RAW_DIR / f"cams_{key}_{hari:%Y%m%d}_{jam_run[:2]}.nc")
+            ds, g, uu, jam_l = _buka(nc)
+            if (g["width"], g["height"]) != (grid["width"], grid["height"]):
+                raise RuntimeError(f"grid {g['width']}x{g['height']} beda dari grid utama")
+            medan = []
+            for i in range(len(jam_l)):
+                a = _ambil(ds, lay["nc_var"], i, uu)
+                if lay["conv"] == "nano":
+                    a = a * 1e9                   # kg/kg tetap, dipajang per 10^-9
+                medan.append(a)
+            ds.close()
+            n = _tulis_per_langkah(key, lay, medan, jam_l, run, grid, vel_nama)
+            waktu = [(run + dt.timedelta(hours=h)).strftime("%Y-%m-%dT%H:00:00Z") for h in jam_l]
+            pm = write_point_series(key, medan, waktu, grid)
+            pm.update({"units": lay["units"], "daily": False})
+            point_meta[key] = pm
+            maks = np.nanmax([np.nanmax(m) for m in medan])
+            # Satuannya tak ikut dicetak, huruf pangkat ⁻⁹ membuat print galat di
+            # konsol Windows cp1252 dan layer yang sudah jadi malah terlewati.
+            print(f"  {key:5} {n:>3} frame tiap {lay['step']} jam  maks {maks:10.2f}")
+        except Exception as e:
+            print(f"  {key} dilewati: {type(e).__name__}: {str(e)[:160]}")
+
+
+def _tulis_gunung_api(run) -> None:
+    """Status tiap gunung api dari MAGMA Indonesia -> gunung_api.json.
+
+    Halaman publik MAGMA dibaca, lihat magma.py. Kalau MAGMA tak terjangkau atau
+    susunan halamannya berubah, DILEWATI tanpa mematikan pipeline. Frontend
+    menyembunyikan titik gunung kalau berkasnya tak ada."""
+    try:
+        doc = magma.kumpulkan()
+    except Exception as e:                       # jaringan, susunan halaman, apa pun
+        print(f"  gunung api dilewati: {type(e).__name__}: {str(e)[:160]}")
+        return
+    doc["diambil"] = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    (OUTPUT_DIR / "gunung_api.json").write_text(json.dumps(doc, ensure_ascii=False, separators=(",", ":")),
+                                               encoding="utf-8")
+    from collections import Counter
+    n = Counter(g["lvl"] for g in doc["gunung"])
+    print(f"  gunung api: {len(doc['gunung'])} gunung, Awas {n[4]}, Siaga {n[3]}, Waspada {n[2]}, Normal {n[1]}")
 
 
 def _potong_grid(grid: dict, barat: float, timur: float, selatan: float, utara: float):

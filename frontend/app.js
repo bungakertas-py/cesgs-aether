@@ -23,6 +23,8 @@ const PALET = {
   // PBL dibaca TERBALIK: warna pekat ada di nilai RENDAH, karena lapisan aduk yang
   // tipis mengurung emisi. Cermin _PBL_WARNA di process.py.
   pbl:  { warna: ["#76195d", "#ae4060", "#d4776a", "#e6b7a2", "#fef6f5"], putih: [1, 1, 0, 0, 0] },   // cmocean curl_pink
+  // Gas belerang gunung api dekat permukaan. Cermin _PALET["vso2"] di process.py.
+  vso2: { warna: ["#bfd3e6", "#8c96c6", "#8c6bb1", "#88419d", "#6e016b"], putih: [0, 0, 1, 1, 1] },   // BuPu
 };
 
 // Kategori ISPU, Lampiran II Permen LHK 14/2020. [batas atas, nama, warna, teks putih]
@@ -84,6 +86,9 @@ const LEGENDS = {
   // PBL dalam meter, dibaca seperti legenda polutan. Bedanya arah: di sini yang
   // pekat justru angka KECIL. Di atas 1500 m sengaja tak berwarna, artinya lega.
   pbl:  _leg("pbl", "m", [200, 400, 700, 1000, 1500]),
+  // Gas belerang gunung api di udara dekat permukaan, dalam satuan mentah CAMS,
+  // rasio massa kg SO2 per kg udara. Angkanya per 10^-9 supaya terbaca.
+  vso2: _leg("vso2", "\u00d710\u207b\u2079 kg/kg", [1, 2, 5, 10, 20]),
 };
 
 // Baku Mutu Udara Ambien nasional, PP No. 22 Tahun 2021 Lampiran VII. Semua ug/m3.
@@ -109,12 +114,12 @@ function bakuMutuLayer(key, harian) {
 // Rumus kimia ditulis dengan angka turun. Dua bentuk: <sub> untuk tempat yang
 // menerima HTML, karakter Unicode untuk atribut & teks polos (tooltip, judul, share).
 const KIMIA_HTML = {
-  ispu: "ISPU", aqi: "AQI", pm25: "PM<sub>2.5</sub>", pm10: "PM<sub>10</sub>", co: "CO",
+  ispu: "ISPU", aqi: "AQI", vso2: "Gas Gunung Api", pm25: "PM<sub>2.5</sub>", pm10: "PM<sub>10</sub>", co: "CO",
   no2: "NO<sub>2</sub>", so2: "SO<sub>2</sub>", o3: "O<sub>3</sub>", aod: "Kabut Asap",
   pbl: "PBLH",
 };
 const KIMIA_TEKS = {
-  ispu: "ISPU", aqi: "AQI", pm25: "PM\u2082.\u2085", pm10: "PM\u2081\u2080", co: "CO",
+  ispu: "ISPU", aqi: "AQI", vso2: "Gas Gunung Api", pm25: "PM\u2082.\u2085", pm10: "PM\u2081\u2080", co: "CO",
   no2: "NO\u2082", so2: "SO\u2082", o3: "O\u2083", aod: "Kabut Asap",
   pbl: "PBLH",
 };
@@ -127,6 +132,7 @@ const LAYER_THEME = {
   // ISPU dari warna resmi Lampiran II, O3 dari gist_heat dibalik, Kabut Asap dari
   // copper dibalik. Empat layer sisanya ujungnya masih cukup terang, tetap gelap.
   ispu: "light", aqi: "light", o3: "light", aod: "light",
+  vso2: "light",   // gas ungu paling terbaca di alas terang, dan fokusnya ke gunung
   pm25: "dark", pm10: "dark", co: "dark", no2: "dark", so2: "dark", pbl: "dark",
   wind_surface: "dark", rain_surface: "dark", rain_accum_surface: "dark",
   temp_surface: "dark", humidity_surface: "dark", cloud_surface: "dark", pressure_surface: "dark",
@@ -307,6 +313,9 @@ firePane.style.zIndex = 658;
 // Lintasan Arah Asap, DI ATAS titik api. Di bawahnya garis tertimbun kerumunan
 // titik api dan tak terbaca. Pane-nya tak menangkap tetikus, jadi titik api di
 // bawahnya tetap bisa diklik.
+// Titik gunung api (parameter Gas Gunung Api), di atas ikon kota dan bisa diklik.
+const gunungPane = map.createPane("gunung");
+gunungPane.style.zIndex = 662;
 const asapPane = map.createPane("asap");
 asapPane.style.zIndex = 660;
 asapPane.style.pointerEvents = "none";
@@ -345,6 +354,9 @@ let fireData = null, fireLoading = null;
 // Status Arah Asap. SENGAJA di sini, bukan di modulnya. asapTitik dibaca oleh
 // fungsi ganti frame yang letaknya jauh di atas modul, dan let yang dibaca
 // sebelum barisnya dieksekusi melempar galat yang mematikan seluruh app.
+// Status Gunung Api, alasan letaknya sama dengan status Arah Asap di bawah.
+let gunungData = null, gunungLoading = null;
+let gunungGroup = null;
 let asapTitik = null;             // {lat, lon} titik api yang sedang dilacak
 let asapGroup = null;
 let asapTimer = 0;
@@ -597,6 +609,7 @@ function setActiveLayer(layerKey) {
     b.classList.toggle("active", b.dataset.layer === activeBase));
   renderLegend(layerKey);
   applyTheme();
+  aturGunung();
   if (velocityLayer) { map.removeLayer(velocityLayer); velocityLayer = null; } // recreate warna partikel
   // Recreate imageOverlay heatmap tiap ganti layer: elemen <img> yang sama TAK
   // di-reuse antar-layer. Mencegah "ghost" palet layer sebelumnya menembus area
@@ -668,6 +681,7 @@ async function showFrame(i) {
   if (vt) vt.textContent = DAILY_LAYERS.has(activeLayer) ? fmtDay(frame.valid_time) : fmtValid(frame.valid_time);
   const ts = $("time-slider"); if (ts) ts.value = String(current);
   refreshCityIcons();                    // label kota (+ikon bila aktif) ikut waktu aktif
+  if (fireOn) drawFire();                // titik api ikut jam di slider
   if (asapTitik) jadwalAsap();           // lintasan asap dihitung ulang dari jam yang tampil
   if (cyclonesOn) refreshCyclones();     // siklon + jalur ikut waktu aktif
   if (itczOn) refreshItcz();             // zona ITCZ ikut waktu aktif
@@ -1932,6 +1946,7 @@ const escHtml = (t) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").re
 
 async function refreshCityIcons() {
   if (!cityGroup) return;
+  if (activeLayer === "vso2") { cityGroup.clearLayers(); return; }   // fokus ke gunung, lihat aturGunung
   let cd, pl;
   try { cd = await loadCityData(); pl = await loadPlaces(); }
   catch (e) { console.warn("Label kota gagal dimuat:", e); return; }
@@ -2108,13 +2123,19 @@ function toggleCyclones() {
 
 // ================= TITIK PANAS VIIRS (FIRMS) =================
 // Overlay PENGAMATAN satelit (bukan ramalan): hanya titik panas KUAT (FRP >= 100
-// MW, disaring di backend), semuanya digambar MERAH TUA tunggal. Tak terikat sumbu
-// waktu forecast; disaring oleh slider waktu khusus di atas legenda (jendela jam
-// ke belakang dari deteksi terbaru).
+// MW, disaring di backend), digambar MERAH TUA.
+// Titik api IKUT SLIDER WAKTU UTAMA, diminta user. Dulu punya slider sendiri
+// "48 jam terakhir" yang membingungkan. Satelit VIIRS cuma melintas beberapa
+// kali sehari (sekitar 01.30 dan 13.30 WIB), jadi menyaring per jam membuat
+// peta kosong di hampir semua jam. Yang tampil adalah deteksi 24 JAM SAMPAI
+// JAM DI SLIDER, yang terbaru pekat dan yang lebih lama memudar.
+// Untuk jam ramalan belum ada pengamatan. Yang tampil pengamatan terakhir, dan
+// banner menulisnya terang terangan. Titiknya sengaja tetap ada supaya Arah
+// Asap bisa dipakai untuk jam ramalan.
 const FIRE_WARNA = "#a80000";
+const FIRE_JENDELA_JAM = 24;
 let fireRenderer = null;
-let fireMaxT = 0;             // waktu deteksi TERBARU (jangkar jendela slider), ms
-let fireWinJam = 48;         // jendela slider aktif: N jam ke belakang dari fireMaxT
+let fireMaxT = 0;             // waktu deteksi TERBARU dalam data, ms
 
 function loadFire() {
   if (fireData) return Promise.resolve(fireData);
@@ -2131,38 +2152,55 @@ function fmtWaktuWIB(iso) {
       day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) + " WIB";
   } catch { return iso; }
 }
-// Jangkar jendela = deteksi TERBARU dalam data. Dihitung tiap data selesai dimuat.
-function setupFireSlider() {
-  const box = $("fire-slider-box"), sld = $("fire-slider");
+// Deteksi TERBARU dalam data, jadi batas antara jam yang sudah teramati dan belum.
+function hitungFireMaxT() {
   const titik = (fireData && fireData.titik) || [];
-  if (!box || !sld) return;
-  if (!titik.length) { box.hidden = true; return; }
   fireMaxT = titik.reduce((mx, p) => Math.max(mx, +new Date(p.t) || 0), 0);
-  box.hidden = !fireOn;
-  sld.value = sld.max;                 // default: jendela penuh (semua titik terlihat)
-  fireWinJam = +sld.max;
+}
+// "Jum 00.56 WIB", untuk kalimat pendek di banner titik api.
+function _jamPendek(ms) {
+  const d = new Date(ms);
+  const hari = d.toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", weekday: "short" });
+  const jam = d.toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit" });
+  return `${hari} ${jam.replace(":", ".")} WIB`;
 }
 function drawFire() {
   if (!fireGroup) return;
   fireGroup.clearLayers();
   if (!fireOn || !fireData) return;
   const titik = fireData.titik || [];
-  const ambang = fireMaxT ? fireMaxT - fireWinJam * 3600e3 : -Infinity;
+  const vt = frames[current] && frames[current].valid_time;
+  const tSlider = vt ? Date.parse(vt) : fireMaxT;
+  // Jam ramalan belum teramati, jangkarnya pengamatan terakhir.
+  const belum = fireMaxT && tSlider > fireMaxT;
+  const jangkar = belum ? fireMaxT : tSlider;
+  const awal = jangkar - FIRE_JENDELA_JAM * 3600e3;
   let n = 0;
   for (const p of titik) {
-    if ((+new Date(p.t) || 0) < ambang) continue;
+    const tp = +new Date(p.t) || 0;
+    if (tp > jangkar || tp <= awal) continue;
     n++;
+    // Umur deteksi terhadap jangkar. Enam jam terakhir pekat, lalu memudar
+    // sampai sekitar sepertiga di ujung jendela 24 jam.
+    const umur = (jangkar - tp) / 3600e3;
+    const pekat = umur <= 6 ? 0.95 : Math.max(0.3, 0.95 - ((umur - 6) / (FIRE_JENDELA_JAM - 6)) * 0.65);
     const m = L.circleMarker([p.la, p.lo], { pane: "fire", renderer: fireRenderer,
-      radius: 3.5, weight: 0.5, color: "#3a0a0a", fillColor: FIRE_WARNA, fillOpacity: 0.9 });
+      radius: 3.5, weight: 0.5, color: "#3a0a0a", opacity: pekat,
+      fillColor: FIRE_WARNA, fillOpacity: pekat });
     m.on("click", (ev) => { L.DomEvent.stopPropagation(ev); openFirePopup(p); });
     fireGroup.addLayer(m);
   }
+  // Kalimat banner sengaja pendek, diminta user. Jam slider tak perlu diulang,
+  // sudah terlihat di slider. Untuk jam ramalan cukup disebut kapan data
+  // terakhirnya, hari dan jam saja.
   const ring = $("api-ringkas");
-  if (ring) ring.textContent = n
-    ? `${n} titik api kuat, ${fireWinJam} jam terakhir`
-    : "Tak ada titik api kuat pada jendela ini";
-  const lbl = $("fire-slider-label");
-  if (lbl) lbl.textContent = `${fireWinJam} jam terakhir`;
+  if (ring) {
+    if (!titik.length) ring.textContent = "Belum ada data titik api";
+    else if (belum) ring.textContent = `${n} titik api, data terakhir ${_jamPendek(fireMaxT)}`;
+    else ring.textContent = n
+      ? `${n} titik api dalam 24 jam terakhir`
+      : "Tidak ada titik api dalam 24 jam terakhir";
+  }
 }
 // Popup titik api. Default terbuka ke ATAS marker (tip di bawah). Untuk titik dekat
 // tepi ATAS frame, popup default nyembur keluar bingkai (peta terkunci maxBounds,
@@ -2192,22 +2230,111 @@ function openFirePopup(p) {
 function toggleFire() {
   fireOn = !fireOn;
   $("api-toggle") && $("api-toggle").classList.toggle("active", fireOn);
-  const note = $("api-note"), box = $("fire-slider-box");
+  const note = $("api-note");
   if (fireOn) {
     if (!fireRenderer) fireRenderer = L.canvas({ pane: "fire", padding: 0.5 });
     if (!fireGroup) fireGroup = L.layerGroup([], { pane: "fire" });
     fireGroup.addTo(map);
     if (note) note.classList.add("show");
-    loadFire().then(() => { if (!fireOn) return; setupFireSlider(); drawFire(); });
+    loadFire().then(() => { if (!fireOn) return; hitungFireMaxT(); drawFire(); });
   } else {
     if (fireGroup) { fireGroup.clearLayers(); map.removeLayer(fireGroup); }
     tutupAsap();
     if (note) note.classList.remove("show", "open");
-    if (box) box.hidden = true;
   }
   updateHash();
 }
 
+
+// ================= GUNUNG API (status PVMBG + gas belerang CAMS) =================
+// Parameter "Gas Gunung Api" di rel kiri. Peta menampilkan gas belerang (SO2
+// vulkanik di lapisan model paling bawah, satuan mentah kg/kg) dari model CAMS
+// seperti polutan lain, dan di atasnya titik tiap gunung api dengan warna status RESMI dari MAGMA
+// Indonesia (PVMBG). Gunung Siaga dan Awas diberi lingkaran radius bahaya dari
+// rekomendasinya. Ini GAS, bukan abu, dan itu ditulis terang di banner.
+// Awalnya fitur tumpangan di panel kanan, dipindah ke rel kiri atas permintaan
+// user supaya punya legenda sendiri dan fokus ke gunung.
+const GUNUNG_WARNA = { 1: "#3fb950", 2: "#f2c200", 3: "#ff8a00", 4: "#e0241b" };
+const GUNUNG_NAMA = { 1: "Normal", 2: "Waspada", 3: "Siaga", 4: "Awas" };
+
+function loadGunung() {
+  if (gunungData) return Promise.resolve(gunungData);
+  if (!gunungLoading) gunungLoading = fetch(DATA_BASE + "gunung_api.json")
+    .then((r) => (r.ok ? r.json() : { gunung: [] }))
+    .then((j) => (gunungData = j))
+    .catch(() => (gunungData = { gunung: [] }));
+  return gunungLoading;
+}
+
+function _esc(t) {
+  return String(t || "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+
+function drawGunung() {
+  if (!gunungGroup) return;
+  gunungGroup.clearLayers();
+  const daftar = (gunungData && gunungData.gunung) || [];
+  // Normal digambar dulu supaya yang bergolak selalu di atas.
+  for (const g of [...daftar].sort((a, b) => a.lvl - b.lvl)) {
+    if (!isFinite(g.lat) || !isFinite(g.lon)) continue;
+    const r = g.laporan && g.laporan.radius_km;
+    if (g.lvl >= 3 && r) {
+      L.circle([g.lat, g.lon], { pane: "gunung", radius: r * 1000, color: GUNUNG_WARNA[g.lvl],
+        weight: 1.5, dashArray: "4 4", fillColor: GUNUNG_WARNA[g.lvl], fillOpacity: 0.12,
+        interactive: false }).addTo(gunungGroup);
+    }
+    const sz = { 1: 12, 2: 15, 3: 19, 4: 21 }[g.lvl] || 12;
+    const nama = g.lvl >= 3 ? `<b class="gn-nama">${_esc(g.n)}</b>` : "";
+    const m = L.marker([g.lat, g.lon], { pane: "gunung", keyboard: false, title: `${g.n}, ${GUNUNG_NAMA[g.lvl]}`,
+      icon: L.divIcon({ className: `gn-ikon gn-l${g.lvl}`, iconSize: [sz, sz], iconAnchor: [sz / 2, sz * 0.75],
+        html: `<span class="gn-seg" style="--gw:${GUNUNG_WARNA[g.lvl]}"></span>${nama}` }) });
+    m.on("click", () => openGunungPopup(g));
+    m.addTo(gunungGroup);
+  }
+  const n = { 1: 0, 2: 0, 3: 0, 4: 0 };
+  for (const g of daftar) n[g.lvl] = (n[g.lvl] || 0) + 1;
+  const ring = $("gunung-ringkas");
+  if (ring) {
+    const bagian = [];
+    if (n[4]) bagian.push(`${n[4]} Awas`);
+    bagian.push(`${n[3]} Siaga`, `${n[2]} Waspada`);
+    ring.textContent = daftar.length ? `${bagian.join(", ").replace(/^(\d+)/, "$1 gunung")}` : "Data gunung api belum tersedia";
+  }
+}
+
+function openGunungPopup(g) {
+  const lap = g.laporan || {};
+  let rek = lap.rekomendasi || "";
+  const panjang = rek.length > 240;
+  if (panjang) rek = rek.slice(0, 240).replace(/\s+\S*$/, "") + "…";
+  const html =
+    `<div class="gn-pop"><div class="gn-pop-n">${_esc(g.n)}</div>` +
+    `<div class="gn-pop-p">${_esc(g.prov)}</div>` +
+    `<span class="gn-chip" style="--gw:${GUNUNG_WARNA[g.lvl]}">Level ${["", "I", "II", "III", "IV"][g.lvl]} ${GUNUNG_NAMA[g.lvl]}</span>` +
+    (lap.waktu ? `<div class="gn-pop-sub">Laporan ${_esc(lap.waktu)}</div>` : "") +
+    (lap.visual ? `<div class="gn-pop-h">Pengamatan</div><p>${_esc(lap.visual)}</p>` : "") +
+    (rek ? `<div class="gn-pop-h">Rekomendasi resmi</div><p>${_esc(rek)}</p>` : "") +
+    `<a class="gn-pop-a" href="${_esc(g.url)}" target="_blank" rel="noopener">Laporan lengkap di MAGMA PVMBG</a></div>`;
+  L.popup({ className: "fire-popup", maxWidth: 300, autoPan: true, autoPanPadding: [24, 24] })
+    .setLatLng([g.lat, g.lon]).setContent(html).openOn(map);
+}
+
+// Parameter Gas Gunung Api FOKUS KE GUNUNG. Waktu dipilih, titik status gunung
+// dan bannernya muncul, label nilai kota disembunyikan (nilai gas di pusat kota
+// hampir selalu nol, jadi cuma mengotori peta). Dipanggil tiap ganti layer.
+function aturGunung() {
+  const fokus = activeLayer === "vso2";
+  const note = $("gunung-note");
+  if (fokus) {
+    if (!gunungGroup) gunungGroup = L.layerGroup([], { pane: "gunung" });
+    gunungGroup.addTo(map);
+    if (note) note.classList.add("show");
+    loadGunung().then(() => { if (activeLayer === "vso2") drawGunung(); });
+  } else {
+    if (gunungGroup) { gunungGroup.clearLayers(); map.removeLayer(gunungGroup); }
+    if (note) note.classList.remove("show", "open");
+  }
+}
 
 // ================= ARAH ASAP (lintasan asap dari titik api) =================
 // Dari satu titik api, posisi asap digeser mengikuti angin 10 m ramalan CAMS
@@ -2931,7 +3058,6 @@ async function init() {
     $("mon-toggle")?.addEventListener("click", toggleMonsoon);
     $("api-toggle")?.addEventListener("click", toggleFire);
     $("api-note-toggle")?.addEventListener("click", () => $("api-note")?.classList.toggle("open"));
-    $("fire-slider")?.addEventListener("input", (e) => { fireWinJam = +e.target.value; drawFire(); });
     map.on("moveend", () => { refreshCityIcons(); });
     map.on("zoomend", applyLabelTiles);   // ambang label CARTO vs label kota sendiri
 
@@ -2986,6 +3112,7 @@ async function init() {
     // Dropdown legenda+threshold di banner indikasi siklon.
     $("cyc-note-toggle")?.addEventListener("click", () => $("cyc-note").classList.toggle("open"));
     $("asap-tutup")?.addEventListener("click", tutupAsap);
+    $("gunung-note-toggle")?.addEventListener("click", () => $("gunung-note")?.classList.toggle("open"));
     $("itcz-note-toggle")?.addEventListener("click", () => $("itcz-note").classList.toggle("open"));
 
     // Pencarian kota/kabupaten

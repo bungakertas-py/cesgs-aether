@@ -1,7 +1,7 @@
 /* Service worker CESGS Aether — cache SHELL app (berversi), data udara TETAP
  * online. Naikkan VERSION tiap rilis frontend agar user dapat versi terbaru
  * (cache lama dihapus saat activate). */
-const VERSION = "v1";
+const VERSION = "v2";
 const CACHE = "cesgs-aether-" + VERSION;
 
 // Saat REVIEW LOKAL, jangan cache shell sama sekali. Strategi cache-first membuat

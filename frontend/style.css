@@ -1356,7 +1356,10 @@ html, body {
 #cyclone-toggle, #itcz-toggle, #mon-toggle,
 #city-toggle, #cond-legend,
 #itcz-note, #phenom-panel,
-.level-bar, #pt-skewt-wrap, #panel-toggle { display: none !important; }
+.level-bar, #pt-skewt-wrap, #panel-toggle,
+/* Wadah Kondisi dan Fenomena ikut disembunyikan. Isinya sudah tak tampil, tapi
+   wadah kosong tetap makan satu jarak kolom, jadi jarak tombol kanan tak rata. */
+.col.items-end > .city-wrap, .col.items-end > .phenom-wrap { display: none !important; }
 .selects .field:nth-child(2) { display: none; }   /* dropdown LEVEL desktop */
 
 /* Layer beralas terang (ISPU, AQI, O3, Kabut Asap). Tanpa ini, sekejap
@@ -1476,7 +1479,13 @@ sub { font-size: .72em; line-height: 0; vertical-align: baseline; position: rela
 /* ---- Banner titik api, satu struktur dengan banner siklon ---- */
 .api-note .cyc-note-top { background: rgba(168, 0, 0, .72); }
 .api-note .cyc-caret { color: #ff8a80; }
-.api-lead { font-family: var(--font-ui); font-size: 10.5px; line-height: 1.5; max-width: 260px; color: var(--variant); }
+/* Keterangan titik api RATA KIRI KANAN dan memenuhi lebar banner, diminta
+   user. width 0 plus min-width 100% membuat teks ini mengikuti lebar yang
+   ditentukan baris lain di banner, tanpa ikut melebarkan bannernya. */
+.api-lead {
+  width: 0; min-width: 100%; max-width: none; text-align: justify;
+  font-family: var(--font-ui); font-size: 10.5px; line-height: 1.5; color: var(--variant);
+}
 .api-sw { width: 12px; height: 12px; flex: none; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .55); }
 
 /* ---- Slider jendela waktu titik api, mengambang di atas legenda ---- */
@@ -1910,3 +1919,88 @@ sub { font-size: .72em; line-height: 0; vertical-align: baseline; position: rela
   .asap-card { width: min(330px, calc(100vw - 110px)); }
   .asap-isi { max-height: 36vh; }
 }
+
+/* ---- UKURAN IKON LEBIH KECIL, diminta user ----
+   Acuannya Primeon (primeon-plume), tata letaknya mirip, nama selalu tampil
+   di samping ikon, tapi kotak ikonnya sekitar 32px. Di Nimbus kotaknya 46px
+   karena di sana nama baru muncul waktu disorot, jadi kotaknya harus mudah
+   diincar. Di Aether namanya selalu tampil, jadi kotak sebesar itu kegedean.
+   Tangga ukuran menurut tinggi layar dari Nimbus tetap dipakai polanya,
+   cuma semua anak tangganya digeser turun. Blok ini WAJIB di ekor berkas
+   supaya menang atas tangga Nimbus di atas. */
+@media (min-width: 641px) {
+  :root { --ctl: 34px; --ctl-ico: 18px; --rail-gap: 6px; --zoom-btn: 32px; }
+}
+@media (min-width: 641px) and (max-height: 900px) {
+  :root { --ctl: 33px; --ctl-ico: 17px; --rail-gap: 6px; --zoom-btn: 31px; }
+}
+@media (min-width: 641px) and (max-height: 820px) {
+  :root { --ctl: 32px; --ctl-ico: 17px; --rail-gap: 5px; --zoom-btn: 30px; }
+}
+@media (min-width: 641px) and (max-height: 740px) {
+  :root { --ctl: 31px; --ctl-ico: 16px; --rail-gap: 4px; --zoom-btn: 29px; }
+}
+@media (min-width: 641px) and (max-height: 670px) {
+  :root { --ctl: 30px; --ctl-ico: 16px; --rail-gap: 4px; --zoom-btn: 28px; }
+}
+@media (min-width: 641px) and (max-height: 600px) {
+  :root { --ctl: 28px; --ctl-ico: 15px; --rail-gap: 3px; }
+}
+@media (min-width: 641px) and (max-height: 540px) {
+  :root { --ctl: 30px; --ctl-ico: 16px; --rail-gap: 4px; }
+}
+/* Pil nama ikut mengecil supaya seimbang dengan kotak ikonnya. */
+@media (min-width: 641px) {
+  .layer-btn:not(.layer-btn--half) .lb-txt { padding: 5px 11px; font-size: 12px; left: calc(100% + 8px); }
+  .col.items-end > .icon-btn::after,
+  .col.items-end > .icon-btn:hover::after,
+  .col.items-end .search-wrap > .icon-btn::after,
+  .col.items-end .search-wrap > .icon-btn:hover::after { padding: 5px 11px; font-size: 12px; right: calc(100% + 8px); }
+  .layer-split { width: 118px; padding: 3px; gap: 3px; }
+  .layer-btn.layer-btn--half .lb-txt,
+  .layer-btn.layer-btn--half:hover .lb-txt { font-size: 12px; }
+  .layer-btn, .icon-btn { border-radius: var(--r-btn); }
+}
+
+/* ---- GUNUNG API, status PVMBG dan gas belerang CAMS ---- */
+.gunung-note .cyc-note-top { background: rgba(120, 60, 20, .78); }
+.gunung-note .cyc-caret { color: #ffb070; }
+/* Segitiga gunung, warna status resmi. Tepi gelap supaya terbaca di peta terang
+   maupun gelap, dan nama gunung Siaga atau Awas ditulis di sampingnya. */
+.gn-ikon { background: none; border: 0; }
+.gn-seg {
+  display: block; width: 100%; height: 100%;
+  background: var(--gw);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  filter: drop-shadow(0 0 1px #0b0f18) drop-shadow(0 1px 2px rgba(0, 0, 0, .6));
+}
+.gn-l1 .gn-seg { opacity: .8; }
+.gn-nama {
+  position: absolute; left: calc(100% + 4px); top: 50%; transform: translateY(-40%);
+  white-space: nowrap; pointer-events: none;
+  font-family: var(--font-ui); font-size: 11px; font-weight: 600; color: #fff;
+  text-shadow: 0 0 3px #000, 0 0 6px #000, 0 1px 2px #000;
+}
+.gn-sw {
+  width: 12px; height: 11px; flex: none; background: var(--gw);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+/* Popup gunung, memakai bingkai popup titik api. */
+.gn-pop { font-family: var(--font-ui); font-size: 11.5px; line-height: 1.5; color: var(--ink); }
+.gn-pop-n { font-family: var(--font-display); font-weight: 600; font-size: 14px; padding-right: 26px; }
+.gn-pop-p { font-family: var(--font-mono); font-size: 10px; color: var(--secondary); margin: 2px 0 7px; }
+.gn-chip {
+  display: inline-block; padding: 3px 10px; border-radius: var(--r-full);
+  background: var(--gw); color: #131b2e; font-weight: 600; font-size: 11px;
+}
+.gn-pop-sub { font-family: var(--font-mono); font-size: 10px; color: var(--variant); margin-top: 7px; }
+.gn-pop-h {
+  font-family: var(--font-mono); font-size: 9.5px; font-weight: 500; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--secondary); margin-top: 9px;
+}
+.gn-pop p { margin: 2px 0 0; color: var(--ink); }
+.gn-pop-a {
+  display: inline-block; margin-top: 10px; color: var(--secondary); font-weight: 600;
+  text-decoration: none; border-bottom: 1px solid rgba(106, 201, 255, .4);
+}
+.gn-pop-a:hover { border-bottom-color: var(--secondary); }

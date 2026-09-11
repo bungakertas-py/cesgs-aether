@@ -113,6 +113,23 @@ LAYERS = {
     # Malam hari bisa turun ke ~100 m, siang di darat bisa lebih dari 2000 m.
     "pbl":  {"cams_var": "boundary_layer_height", "nc_var": "blh", "src": "single",
              "conv": "apa_adanya", "daily": False, "units": "m", "level_label": "surface"},
+    # Gas belerang GUNUNG API, SO2 vulkanik. CAMS memisahkannya dari SO2 biasa dan
+    # mengisinya dari pengamatan satelit TROPOMI dan GOME-2. Parameter "Gas Gunung
+    # Api" di rel kiri.
+    # Diambil di lapisan model paling bawah seperti gas lain, dan dipajang dalam
+    # SATUAN MENTAHNYA, rasio massa kg/kg, atas permintaan user 11 Sep 2026.
+    # Angkanya dikali 1e9 cuma supaya legenda terbaca, jadi 1 di peta berarti
+    # 1 x 10^-9 kg SO2 per kg udara (kira kira 1,2 ug/m3 di permukaan). Latar
+    # sekitar 0,01, gumpalan gunung api 1 sampai puluhan. Sebelumnya total kolom
+    # dalam Dobson Unit, diganti karena user mau udara dekat permukaan.
+    # src "vulkanik" artinya DIUNDUH TERPISAH, jangan digabung ke permintaan gas
+    # lain. Diuji 11 Sep 2026, variabel ini di lapisan model cuma ada TIAP 3 JAM,
+    # dan kalau dicampur sulphur_dioxide dalam satu permintaan, ADS memulangkan
+    # VSO2 saja tiap 3 jam lalu SO2-nya hilang tanpa galat. Jadi layer ini punya
+    # 41 frame, bukan 121, dan slidernya melangkah per 3 jam seperti PM harian.
+    "vso2": {"cams_var": "volcanic_sulphur_dioxide", "nc_var": "VSO2", "src": "vulkanik",
+             "step": 3, "conv": "nano", "daily": False, "units": "×10⁻⁹ kg/kg",
+             "level_label": "surface"},
 }
 
 # ---------------------------------------------------------------------------

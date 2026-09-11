@@ -750,6 +750,14 @@ def _render_scalar_preview(values: np.ndarray, scale: list, dest: Path, scale_up
     _save_preview(img, dest, lossless=kategori)
 
 
+# Gas belerang gunung api (SO2 vulkanik dekat permukaan, x10^-9 kg/kg), parameter
+# di rel kiri. Skala MENERUS seperti polutan lain, bukan kelas, diminta user.
+# Bening di bawah 0,5 x10^-9 kg/kg. Palet BuPu, biru muda ke ungu tua, cermin PALET.vso2
+# di app.js.
+_PALET["vso2"] = [(0xbf, 0xd3, 0xe6), (0x8c, 0x96, 0xc6), (0x8c, 0x6b, 0xb1),
+                  (0x88, 0x41, 0x9d), (0x6e, 0x01, 0x6b)]
+_VSO2_SCALE = _skala(0.5, [1, 2, 5, 10, 20], _PALET["vso2"])
+
 _SCALAR_SCALES = {
     "rain_surface": _RAIN_SCALE,
     "rain_accum_surface": _RAIN_ACCUM_SCALE,
@@ -764,6 +772,7 @@ _SCALAR_SCALES = {
     "no2": _NO2_SCALE, "so2": _SO2_SCALE, "o3": _O3_SCALE, "aod": _AOD_SCALE,
     "ispu": _ISPU_SCALE, "aqi": _AQI_SCALE, "paparan": _PAPARAN_SCALE,
     "pbl": _PBL_SCALE, **_DT_SCALES,
+    "vso2": _VSO2_SCALE,
 }
 
 
@@ -968,6 +977,9 @@ _PD_SCALE = {"pm25": 1.0, "pm10": 1.0, "co": 10.0, "no2": 0.1,
              # Angin 10 m untuk fitur Arah Asap, m/s. Skala 0,2 tidak terasa di
              # lintasan dan memangkas ukuran berkas sekitar seperempat.
              "angin_u": 0.2, "angin_v": 0.2,
+             # SO2 vulkanik dalam x10^-9 kg/kg, gumpalan erupsi puluhan. Skala
+             # 0,01 menyimpan nilai tipis di bawah 1 dan jangkauannya 327.
+             "vso2": 0.01,
              # Paparan: jiwa/sel bisa jutaan. int16 x 300 -> jangkauan ~9,8 juta.
              "paparan": 300.0,
              # PBL dalam meter, puncaknya ~3000. Muat di int16 tanpa diskalakan.
