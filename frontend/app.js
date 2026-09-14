@@ -2147,6 +2147,7 @@ function toggleCyclones() {
 // Asap bisa dipakai untuk jam ramalan.
 const FIRE_WARNA = "#a80000";
 const FIRE_JENDELA_JAM = 24;
+let fireRenderer = null;
 let fireMaxT = 0;             // waktu deteksi TERBARU dalam data, ms
 
 function loadFire() {
@@ -2196,15 +2197,30 @@ function drawFire() {
     // sampai sekitar sepertiga di ujung jendela 24 jam.
     const umur = (jangkar - tp) / 3600e3;
     const pekat = umur <= 6 ? 0.95 : Math.max(0.3, 0.95 - ((umur - 6) / (FIRE_JENDELA_JAM - 6)) * 0.65);
-    // Ikon api, bukan titik merah, diminta user. Pudarnya tetap ikut umur deteksi.
-    const m = L.marker([p.la, p.lo], { pane: "fire", keyboard: false, title: "Titik api", opacity: pekat,
-      icon: L.divIcon({ className: "api-ikon", iconSize: [18, 18], iconAnchor: [9, 15],
-        html: '<span class="material-symbols-outlined">local_fire_department</span>' }) });
+    // Mode Kabar Kota memakai ikon api, diminta user untuk booth. Di luar mode itu
+    // tetap titik merah seperti semula. Pudarnya ikut umur deteksi di keduanya.
+    const m = modeKota
+      ? L.marker([p.la, p.lo], { pane: "fire", keyboard: false, title: "Titik api", opacity: pekat,
+          icon: L.divIcon({ className: "api-ikon", iconSize: [18, 18], iconAnchor: [9, 15],
+            html: '<span class="material-symbols-outlined">local_fire_department</span>' }) })
+      : L.circleMarker([p.la, p.lo], { pane: "fire", renderer: fireRenderer,
+          radius: 3.5, weight: 0.5, color: "#3a0a0a", opacity: pekat,
+          fillColor: FIRE_WARNA, fillOpacity: pekat });
     m.on("click", (ev) => { L.DomEvent.stopPropagation(ev); openFirePopup(p); });
     fireGroup.addLayer(m);
   }
-  // Banner titik api sudah dibuang, diminta user. Jumlahnya tampil di status
-  // samping legenda, kalimat lengkapnya di keterangan waktu status itu ditunjuk.
+  // Kalimat banner sengaja pendek, diminta user. Jam slider tak perlu diulang,
+  // sudah terlihat di slider. Untuk jam ramalan cukup disebut kapan data
+  // terakhirnya, hari dan jam saja.
+  const ring = $("api-ringkas");
+  if (ring) {
+    if (!titik.length) ring.textContent = "Belum ada data titik api";
+    else if (belum) ring.textContent = `${n} titik api, data terakhir ${_jamPendek(fireMaxT)}`;
+    else ring.textContent = n
+      ? `${n} titik api dalam 24 jam terakhir`
+      : "Tidak ada titik api dalam 24 jam terakhir";
+  }
+  // Mode Kabar Kota tidak memakai banner, jumlahnya tampil di status samping legenda.
   statusApi = { n, ada: titik.length > 0, belum: !!belum, akhir: fireMaxT };
   aturStatusSamping();
 }
@@ -2237,6 +2253,7 @@ function toggleFire() {
   fireOn = !fireOn;
   $("api-toggle") && $("api-toggle").classList.toggle("active", fireOn);
   if (fireOn) {
+    if (!fireRenderer) fireRenderer = L.canvas({ pane: "fire", padding: 0.5 });
     if (!fireGroup) fireGroup = L.layerGroup([], { pane: "fire" });
     fireGroup.addTo(map);
     loadFire().then(() => { if (!fireOn) return; hitungFireMaxT(); drawFire(); });
@@ -2244,6 +2261,7 @@ function toggleFire() {
     if (fireGroup) { fireGroup.clearLayers(); map.removeLayer(fireGroup); }
     tutupAsap();
   }
+  aturBanner();
   aturStatusSamping();
   updateHash();
 }
@@ -2296,8 +2314,14 @@ function drawGunung() {
   }
   const n = { 1: 0, 2: 0, 3: 0, 4: 0 };
   for (const g of daftar) n[g.lvl] = (n[g.lvl] || 0) + 1;
-  // Banner gunung sudah dibuang, diminta user. Hitungan per status tampil di
-  // samping legenda.
+  const ring = $("gunung-ringkas");
+  if (ring) {
+    const bagian = [];
+    if (n[4]) bagian.push(`${n[4]} Awas`);
+    bagian.push(`${n[3]} Siaga`, `${n[2]} Waspada`);
+    ring.textContent = daftar.length ? `${bagian.join(", ").replace(/^(\d+)/, "$1 gunung")}` : "Data gunung api belum tersedia";
+  }
+  // Mode Kabar Kota tidak memakai banner, hitungannya tampil di status samping legenda.
   statusGunung = daftar.length ? n : null;
   aturStatusSamping();
 }
@@ -2331,12 +2355,73 @@ function aturGunung() {
   } else {
     if (gunungGroup) { gunungGroup.clearLayers(); map.removeLayer(gunungGroup); }
   }
+  aturBanner();
   aturStatusSamping();
 }
 
+// ================= MODE KABAR KOTA =================
+// Diminta user. Semua tata letak baru untuk booth (status di samping legenda,
+// ikon api, tombol Model di kanan, Last update di bawah kartu brand, legenda di
+// layar penuh) CUMA berlaku waktu Kabar Kota menyala. Kabar Kota mati, situs
+// kembali ke tata letak semula. kota.js memanggil setModeKota tiap bilahnya
+// dinyalakan atau dimatikan. Aturan CSS-nya bergantung pada kelas #ui.kota-on.
+let modeKota = false;
+function setModeKota(on) {
+  modeKota = !!on;
+  if (fireOn && fireData) drawFire();   // titik merah dan ikon api bertukar
+  aturBanner();
+  aturStatusSamping();
+  aturTempatFresh();
+  aturTempatModel();
+}
+
+// Banner titik api dan gunung api, tampilan semula. Disembunyikan di mode Kabar Kota.
+function aturBanner() {
+  const api = $("api-note"), gn = $("gunung-note");
+  const apiTampil = fireOn && !modeKota;
+  const gnTampil = activeLayer === "vso2" && !modeKota;
+  if (api) { api.classList.toggle("show", apiTampil); if (!apiTampil) api.classList.remove("open"); }
+  if (gn) { gn.classList.toggle("show", gnTampil); if (!gnTampil) gn.classList.remove("open"); }
+}
+
+// Badge Last update. HP selalu di legend-col (di atas legenda). Desktop, di mode
+// Kabar Kota tepat di bawah kartu brand, di luar mode itu di kontainer slider
+// (atas kanan) seperti semula.
+function aturTempatFresh() {
+  const badge = $("data-fresh");
+  if (!badge) return;
+  const hp = window.matchMedia("(max-width: 640px)").matches;
+  if (hp) {
+    const host = document.querySelector(".legend-col");
+    if (host && badge.parentElement !== host) host.insertBefore(badge, host.firstChild);
+  } else if (modeKota) {
+    const brand = document.querySelector(".brand-row");
+    if (brand && brand.nextElementSibling !== badge) brand.insertAdjacentElement("afterend", badge);
+  } else {
+    const host = document.querySelector(".ui-bottom .timeline");
+    if (host && badge.parentElement !== host) host.insertBefore(badge, host.firstChild);
+  }
+}
+
+// Panel MODEL. Semula di kolom kiri di bawah Parameter. Di mode Kabar Kota
+// dipindah utuh ke kotak tombol Model di kolom kanan. Elemen aslinya yang
+// dipindah, jadi pendengar dropdown tetap jalan.
+function aturTempatModel() {
+  const panel = document.querySelector(".panel.selects");
+  const kotak = $("model-box");
+  const jangkar = document.querySelector(".level-bar");
+  if (!panel || !kotak || !jangkar) return;
+  if (modeKota) {
+    if (panel.parentElement !== kotak) kotak.appendChild(panel);
+  } else {
+    kotak.classList.remove("open");
+    if (panel.previousElementSibling !== jangkar) jangkar.insertAdjacentElement("afterend", panel);
+  }
+}
+
 // ================= STATUS DI SAMPING LEGENDA =================
-// Pengganti banner titik api dan banner gunung api, diminta user. Satu kotak
-// kaca kecil tepat di kiri batang legenda. Isinya hitungan status gunung waktu
+// Versi Kabar Kota dari banner titik api dan banner gunung api, diminta user.
+// Satu kotak kaca kecil tepat di kiri batang legenda. Isinya hitungan status gunung waktu
 // parameter Gas Gunung Api tampil, dan jumlah titik api waktu Titik Api
 // menyala. Penjelasan lengkap yang dulu ada di banner muncul waktu kotaknya
 // ditunjuk, atau diketuk di layar sentuh.
@@ -2362,6 +2447,7 @@ function aturStatusSamping() {
   const box = $("status-samping");
   if (!box) return;
   const bagian = [];
+  if (!modeKota) { box.innerHTML = ""; box.hidden = true; return; }
   if ((activeLayer === "vso2" || gunungSelalu) && statusGunung) {
     const n = statusGunung;
     const item = (lvl) => `<span class="ss-item"><i class="ss-seg" style="--gw:${GUNUNG_WARNA[lvl]}"></i>` +
@@ -3148,26 +3234,14 @@ async function init() {
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeAbout(); });
     // Badge "Last update" (HP): tap ikon "!" → buka teks; tap lagi/panah → tutup.
     $("data-fresh")?.addEventListener("click", () => $("data-fresh").classList.toggle("open"));
-    // Tempatkan badge: desktop → tepat di bawah kartu brand CESGS Aether (diminta
-    // user, slider sudah pindah ke bilah Kabar Kota); HP → dalam legend-col (di
-    // atas legenda; otomatis naik di atas tabel kondisi saat ikon kota aktif).
-    const freshBadge = $("data-fresh");
-    const placeFreshBadge = () => {
-      if (!freshBadge) return;
-      const hp = window.matchMedia("(max-width: 640px)").matches;
-      if (hp) {
-        const host = document.querySelector(".legend-col");
-        if (host && freshBadge.parentElement !== host) host.insertBefore(freshBadge, host.firstChild);
-      } else {
-        const brand = document.querySelector(".brand-row");
-        if (brand && brand.nextElementSibling !== freshBadge) brand.insertAdjacentElement("afterend", freshBadge);
-      }
-    };
-    placeFreshBadge();
-    window.addEventListener("resize", placeFreshBadge);
+    // Tempat badge Last update ikut layar dan mode Kabar Kota, lihat aturTempatFresh.
+    aturTempatFresh();
+    window.addEventListener("resize", aturTempatFresh);
     // Dropdown legenda+threshold di banner indikasi siklon.
     $("cyc-note-toggle")?.addEventListener("click", () => $("cyc-note").classList.toggle("open"));
+    $("api-note-toggle")?.addEventListener("click", () => $("api-note")?.classList.toggle("open"));
     $("asap-tutup")?.addEventListener("click", tutupAsap);
+    $("gunung-note-toggle")?.addEventListener("click", () => $("gunung-note")?.classList.toggle("open"));
     $("itcz-note-toggle")?.addEventListener("click", () => $("itcz-note").classList.toggle("open"));
 
     // Pencarian kota/kabupaten

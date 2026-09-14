@@ -2382,12 +2382,13 @@ sub { font-size: .72em; line-height: 0; vertical-align: baseline; position: rela
 }
 
 /* ===================== LAYAR PENUH =====================
-   Diminta user untuk booth. Mode layar penuh dulu menyembunyikan seluruh
-   .ui-bottom, sekarang legenda dan status sampingnya tetap tampil. Panel slider
-   lama tetap disembunyikan, slider waktu ada di bilah Kabar Kota. */
-#stage.immersive #ui .ui-bottom { display: flex !important; }
-#stage.immersive #ui .ui-bottom .timeline { display: none !important; }
-#stage.immersive #ui .legend-col { margin-left: auto; }
+   Diminta user untuk booth, jadi CUMA di mode Kabar Kota. Layar penuh biasa
+   tetap menyembunyikan seluruh .ui-bottom seperti semula. Di mode Kabar Kota
+   legenda dan status sampingnya tetap tampil, panel slider lama tetap
+   disembunyikan sebab slider waktu ada di bilah Kabar Kota. */
+#stage.immersive #ui.kota-on .ui-bottom { display: flex !important; }
+#stage.immersive #ui.kota-on .ui-bottom .timeline { display: none !important; }
+#stage.immersive #ui.kota-on .legend-col { margin-left: auto; }
 /* #ui membagi ruang dengan space-between. Waktu bilah Kabar Kota ada, anaknya
    tiga, dan di layar penuh bagian atas hampir kosong, jadi legenda terdorong ke
    TENGAH peta. margin-top auto menempelkannya tepat di atas bilah. */
@@ -2423,6 +2424,8 @@ sub { font-size: .72em; line-height: 0; vertical-align: baseline; position: rela
    dibuang supaya tidak jadi kaca di atas kaca, dan aturan layar pendek yang
    dulu menyembunyikan .selects di panel kiri tidak berlaku di sini. */
 .model-box { width: 236px; }
+/* Tombol Model cuma ada di mode Kabar Kota. Di luar itu panel MODEL di kolom kiri. */
+#ui:not(.kota-on) .model-wrap { display: none !important; }
 /* Pil nama tombol di bawahnya (Titik Api dan seterusnya) punya z-index 60 dan
    menimpa kotak yang terbuka. Wadahnya dinaikkan di atas pil itu. */
 .col.items-end .model-wrap { position: relative; z-index: 70; }
@@ -2442,15 +2445,16 @@ sub { font-size: .72em; line-height: 0; vertical-align: baseline; position: rela
    Diminta user, batang legenda dan kotak status gunung dan titik api harus sama
    tinggi. Dulu legenda 47 px (sel dua baris ISPU dan AQI plus padding 7 px),
    status 31 px. Keduanya sekarang DIPATOK 32 px, legenda yang dipadatkan, supaya
-   jajarannya rata walau isi sel legenda berganti tiap rotasi. Desktop dan tablet
-   saja, di HP legenda tegak dan aturannya sendiri. */
+   jajarannya rata walau isi sel legenda berganti tiap rotasi. CUMA di mode Kabar
+   Kota, di luar itu legenda ukuran semula. Desktop dan tablet saja, di HP legenda
+   tegak dan aturannya sendiri. */
 @media (min-width: 641px) {
-  .legend-panel, .ss-grup { height: 32px; box-sizing: border-box; }
+  #ui.kota-on .legend-panel, .ss-grup { height: 32px; box-sizing: border-box; }
   .ss-grup { padding-top: 0; padding-bottom: 0; }
-  .legend { padding: 3px 5px 3px 0; align-items: stretch; }
-  .legend-head { font-size: 10px; padding: 0 12px; }
-  .legend-cell { min-height: 0; font-size: 10px; }
-  .legend-cell.dua-baris { padding: 0 10px; gap: 0; line-height: 1.05; }
-  .legend-cell.dua-baris b { font-size: 9.5px; }
-  .legend-cell.dua-baris span { font-size: 8.5px; }
+  #ui.kota-on .legend { padding: 3px 5px 3px 0; align-items: stretch; }
+  #ui.kota-on .legend-head { font-size: 10px; padding: 0 12px; }
+  #ui.kota-on .legend-cell { min-height: 0; font-size: 10px; }
+  #ui.kota-on .legend-cell.dua-baris { padding: 0 10px; gap: 0; line-height: 1.05; }
+  #ui.kota-on .legend-cell.dua-baris b { font-size: 9.5px; }
+  #ui.kota-on .legend-cell.dua-baris span { font-size: 8.5px; }
 }

@@ -31,7 +31,10 @@
   // jadi di tablet kartu melompat sekitar 60 px tiap satu kartu lewat.
   const JARAK = 12;           // jarak antar kartu, cadangan kalau gap CSS tak terbaca
   const LAJU = 52;            // piksel per detik, kira kira 7 detik satu kartu lewat
-  const SIMPAN = "aether-kartu-kota";
+  // Nama kunci diganti dari "aether-kartu-kota". Versi yang sempat live menyalakan
+  // bilah secara bawaan dan menyimpan "1", kunci baru memastikan semua pengunjung
+  // mulai dari keadaan mati.
+  const SIMPAN = "aether-kabar-kota";
 
   // Ambang yang dipakai kartu. Dikumpulkan di sini supaya gampang disetel.
   // Jarak titik api dan gunung SELALU ditulis angka aslinya, tanpa batas "dekat",
@@ -1055,6 +1058,8 @@
     if (ui) ui.classList.toggle("kota-on", hidup);
     if (tombol) tombol.classList.toggle("active", hidup);
     aturSlider();
+    // Tata letak booth di app.js ikut menyala atau kembali ke semula.
+    if (typeof setModeKota === "function") setModeKota(hidup);
     try { localStorage.setItem(SIMPAN, hidup ? "1" : "0"); } catch (e) { /* mode privat */ }
     if (hidup) {
       if (!tempat) siapkanBahan();
@@ -1103,7 +1108,9 @@
       pasangTombol();
       let simpan = null;
       try { simpan = localStorage.getItem(SIMPAN); } catch (e) { /* mode privat */ }
-      setBilah(simpan === null ? true : simpan === "1");
+      // Bawaan MATI, diminta user. Rotasi dan tata letak booth baru berlaku
+      // sesudah Kabar Kota dinyalakan lewat tombolnya.
+      setBilah(simpan === "1");
       return;
     }
     setTimeout(tungguSiap, 250);
