@@ -2004,3 +2004,453 @@ sub { font-size: .72em; line-height: 0; vertical-align: baseline; position: rela
   text-decoration: none; border-bottom: 1px solid rgba(106, 201, 255, .4);
 }
 .gn-pop-a:hover { border-bottom-color: var(--secondary); }
+
+/* ===================== BILAH KABAR KOTA (kota.js) =====================
+   Kartu tiap kota berjalan kanan ke kiri di bawah slider dan legenda, seperti
+   running text berita. Lebar kartu DIPATOK 360px, sama dengan LEBAR di kota.js,
+   sebab hitungan gulirnya memakai angka itu. Kalau salah satu diubah, ubah
+   keduanya. Jendelanya overflow hidden, kartunya digeser lewat transform, jadi
+   tidak ada reflow tiap bingkai. */
+.kota-bar {
+  display: none; margin-top: 10px; pointer-events: auto;
+  /* Kaca PEKAT, bukan kaca biasa. Waktu rotasi sampai ke Gas Gunung Api alas
+     peta berganti terang, dan kaca biasa jadi abu abu pucat yang tulisannya
+     susah dibaca dari jarak booth. */
+  background: var(--glass-strong); backdrop-filter: blur(var(--blur)) saturate(1.2);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(1.2);
+  border: 1px solid var(--glass-brd); border-radius: var(--r-panel);
+  box-shadow: var(--shadow-sm), var(--rim);
+  /* overflow TIDAK disembunyikan, sebab daftar hasil cari membuka ke atas keluar
+     dari bilah. Kartu tetap terpotong rapi oleh .kb-jendela. */
+}
+.kota-bar.show { display: block; }
+.kota-bar.kb-sorot { border-color: var(--primary); }
+
+.kb-judul {
+  display: flex; align-items: flex-start; gap: 7px;
+  padding: 7px 14px 0; color: var(--variant);
+  font-family: var(--font-mono); font-size: 9.5px; font-weight: 500;
+  letter-spacing: .1em; text-transform: uppercase;
+}
+.kb-judul .material-symbols-outlined { font-size: 14px; color: var(--secondary); }
+.kb-tl { color: var(--secondary); }
+/* Kepala bilah disejajarkan ke ATAS, bukan ke tengah, sebab kolom slider punya
+   titik tanggal di bawahnya. Tiap anak diberi kotak setinggi 22px supaya judul,
+   tombol play, jalur slider, jam, dan tombol cari tetap satu garis. */
+.kb-judul > .material-symbols-outlined, .kb-tl { height: 22px; display: flex; align-items: center; flex: none; }
+
+/* ---- Slider waktu di kepala bilah ----
+   Elemen slider, tombol play, dan label jam ASLI dipindah ke sini oleh
+   aturSlider() di kota.js, desktop dan tablet saja. Tingginya disamakan dengan
+   tinggi huruf judul, jadi jalurnya 4px dan tombolnya 11px. Panel timeline
+   yang ditinggal kosong disembunyikan, legenda tinggal sendirian di kanan. */
+.kb-waktu {
+  flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: 10px;
+  margin: 0 14px 0 12px; text-transform: none; letter-spacing: normal;
+}
+.kb-waktu:empty { display: none; }
+.kb-waktu .tl-btns { flex: none; height: 22px; align-items: center; }
+.kb-waktu .tl-btn { width: 20px; height: 20px; box-shadow: 0 2px 8px rgba(96, 99, 238, .4); }
+.kb-waktu .tl-btn .material-symbols-outlined { font-size: 14px; color: var(--on-primary); }
+.kb-slider { flex: 1; min-width: 80px; display: flex; flex-direction: column; }
+.kb-waktu #time-slider { --thumb: 11px; width: 100%; height: 22px; }
+.kb-waktu #time-slider::-webkit-slider-runnable-track { height: 4px; }
+.kb-waktu #time-slider::-webkit-slider-thumb {
+  width: 11px; height: 11px; margin-top: -3.5px; border-width: 2px;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, .5);
+}
+.kb-waktu #time-slider::-moz-range-track,
+.kb-waktu #time-slider::-moz-range-progress { height: 4px; }
+.kb-waktu #time-slider::-moz-range-thumb { width: 8px; height: 8px; }
+.kb-waktu .tl-cur { flex: none; height: 22px; }
+
+/* Titik tanggal di bawah slider, versi mini. Digeser setengah tombol di kiri dan
+   kanan, supaya titik pertama dan terakhir sejajar dengan tengah tombol di ujung
+   jalur, bukan dengan tepi kotak input. */
+.kb-slider .tl-ticks { display: block; height: 13px; margin: -5px 5.5px 0; }
+.kb-slider .tl-tick-mark { width: 1px; height: 3px; }
+.kb-slider .tl-tick.day .tl-tick-mark { width: 1.5px; height: 5px; }
+.kb-slider .tl-tick-lbl { font-size: 8px; margin-top: 1px; letter-spacing: .02em; }
+.kb-waktu .tl-cur .mono { font-size: 10px; padding: 2px 7px; }
+
+#ui.kota-slider .ui-bottom .timeline { display: none; }
+#ui.kota-slider .legend-col { margin-left: auto; }
+
+.kb-jendela {
+  position: relative; overflow: hidden; padding: 7px 0 11px;
+  border-radius: 0 0 var(--r-panel) var(--r-panel);
+}
+
+/* ---- Tombol geser kiri kanan ----
+   Menempel di tepi jendela kartu, di atas kartunya. Gradasi kaca di belakangnya
+   supaya panahnya tetap terbaca di atas kartu yang warnanya macam macam. */
+.kb-geser {
+  position: absolute; top: 7px; bottom: 11px; z-index: 2; width: 40px;
+  display: flex; align-items: center; justify-content: center;
+  border: none; padding: 0; cursor: pointer; color: var(--ink);
+}
+.kb-kiri { left: 0; background: linear-gradient(to right, rgba(12, 18, 34, .72), transparent); }
+.kb-kanan { right: 0; background: linear-gradient(to left, rgba(12, 18, 34, .72), transparent); }
+.kb-geser .material-symbols-outlined {
+  width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+  font-size: 22px; border-radius: 50%;
+  background: var(--glass-strong); border: 1px solid var(--glass-brd-strong);
+  box-shadow: var(--shadow-sm); transition: transform .14s ease, background .14s ease;
+}
+.kb-geser:hover .material-symbols-outlined { background: rgba(96, 99, 238, .55); transform: scale(1.08); }
+.kb-geser:active .material-symbols-outlined { transform: scale(.94); }
+
+/* Kartu hasil cari disorot sebentar */
+.kk.kk-sorot { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary), 0 0 18px rgba(150, 152, 255, .35); }
+
+/* ---- Cari kota di kartu, pojok kanan atas bilah ----
+   Tombol kaca kecil. Diketuk, kotak ketik muncul di kirinya dan hasilnya
+   membuka ke ATAS, sebab bilah ini menempel di dasar layar. */
+.kb-cari {
+  position: relative; flex: none; margin-left: auto;
+  height: 22px; display: flex; align-items: center; gap: 6px;
+  text-transform: none; letter-spacing: normal;
+}
+.kb-cari-btn {
+  width: 24px; height: 24px; margin-top: -1px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--fill-1); border: 1px solid var(--glass-brd); border-radius: 50%;
+  color: var(--variant); cursor: pointer; transition: background .15s ease, color .15s ease;
+}
+.kb-cari-btn .material-symbols-outlined { font-size: 15px; color: inherit; }
+.kb-cari-btn:hover, .kb-cari.open .kb-cari-btn { background: rgba(96, 99, 238, .45); color: #fff; }
+.kb-cari input {
+  display: none; width: 190px; height: 22px; box-sizing: border-box;
+  padding: 0 10px; border-radius: var(--r-full);
+  background: var(--glass-inset); border: 1px solid var(--glass-brd-strong);
+  color: var(--ink); font-family: var(--font-ui); font-size: 11.5px; outline: none;
+}
+.kb-cari input::placeholder { color: var(--outline); }
+.kb-cari input:focus { border-color: var(--primary); }
+.kb-cari.open input { display: block; }
+.kb-cari-hasil {
+  position: absolute; right: 0; bottom: calc(100% + 8px); z-index: 20;
+  width: 250px; max-height: 300px; overflow-y: auto;
+  display: none; flex-direction: column; padding: 4px;
+  background: var(--glass-strong); backdrop-filter: blur(var(--blur-lg)) saturate(1.25);
+  -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(1.25);
+  border: 1px solid var(--glass-brd-strong); border-radius: var(--r-card); box-shadow: var(--shadow);
+}
+.kb-cari.open .kb-cari-hasil:not(:empty) { display: flex; }
+.kb-cari-item {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 7px 9px; border: none; border-radius: 8px; background: transparent;
+  color: var(--ink); font-family: var(--font-ui); font-size: 12px; text-align: left; cursor: pointer;
+}
+.kb-cari-item:hover { background: var(--fill-2); }
+.kb-cari-n { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kb-cari-v {
+  flex: none; min-width: 30px; padding: 1px 7px; border-radius: var(--r-full); text-align: center;
+  background: var(--kw); color: var(--kt); font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+}
+.kb-cari-kosong { padding: 9px 10px; font-size: 11.5px; color: var(--outline); }
+.kota-track { display: flex; gap: 12px; padding-left: 14px; will-change: transform; }
+
+/* Satu kartu. Garis warna di tepi kiri memakai warna kategori ISPU-nya, jadi
+   dari jauh sudah kelihatan mana kota yang bermasalah tanpa membaca angkanya. */
+/* Lebar 412 px, dari 360, diminta user supaya "Tidak terpapar SO₂" muat. Diukur,
+   baris terpanjang "Waspada · Tidak terpapar SO₂" 163 px. kota.js mengukur lebar
+   ini sendiri, jadi cukup diubah di CSS. */
+.kk {
+  flex: 0 0 412px; width: 412px; box-sizing: border-box;
+  /* Tinggi DIPATOK. Kartu tiga baris lebih tinggi dari kartu satu baris, dan
+     karena jendelanya overflow hidden, kartu tinggi yang menyusul terpotong
+     mengikuti tinggi bilah yang sudah terlanjur dihitung dari kartu pendek.
+     Dipatok sekalian supaya bilahnya juga tidak naik turun saat kartu berganti. */
+  height: 116px; overflow: hidden;
+  padding: 8px 12px 8px 11px; cursor: pointer;
+  background: rgba(12, 18, 34, .42); border: 1px solid var(--glass-brd);
+  border-left: 4px solid var(--kk, var(--outline));
+  border-radius: var(--r-card);
+  transition: background .15s ease, border-color .15s ease;
+}
+.kk:hover { background: var(--fill-1); border-color: var(--glass-brd-strong); }
+
+.kk-atas { display: flex; align-items: center; gap: 8px; height: 18px; }
+.kk-nama {
+  font-family: var(--font-display); font-weight: 600; font-size: 14px;
+  color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.kk-kat {
+  flex: none; padding: 1px 7px; border-radius: var(--r-full);
+  background: var(--kw); color: var(--kt);
+  font-family: var(--font-mono); font-size: 8.5px; font-weight: 600;
+  letter-spacing: .06em; text-transform: uppercase; white-space: nowrap;
+}
+
+/* ---- Grid BENTO di dalam kartu ----
+   Tujuh kotak tetap, diminta user. Kolom pertama kotak ISPU setinggi dua baris.
+   Dua belas kolom sisanya. Baris atas tiga kotak angka pendek selebar 4 kolom
+   (AQI, rokok, jarak pandang). Baris bawah titik api 5 kolom dan gunung api 7
+   kolom, sebab kalimat gunung lebih panjang (163 px) daripada titik api (110 px).
+   Hitungan tinggi, kepala 18 + jarak 4 + 32 + 4 + 40 = 98, pas dengan isi kartu
+   116 dikurangi tepi dan padding. Ubah salah satu, hitung ulang. */
+.kk-bento {
+  display: grid; gap: 4px; margin-top: 4px;
+  grid-template-columns: 64px repeat(12, minmax(0, 1fr));
+  grid-template-rows: 32px 40px;
+}
+.kg {
+  min-width: 0; overflow: hidden; box-sizing: border-box;
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 1px 7px; border-radius: 7px;
+  background: rgba(255, 255, 255, .045); border: 1px solid rgba(255, 255, 255, .08);
+}
+.kg-l {
+  display: flex; align-items: center; gap: 3px;
+  font-family: var(--font-mono); font-size: 7.5px; line-height: 10px; font-weight: 500;
+  letter-spacing: .07em; text-transform: uppercase; color: var(--outline);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.kg-l .material-symbols-outlined { font-size: 10px; }
+.kg-v {
+  font-family: var(--font-display); font-size: 15px; line-height: 18px; font-weight: 600;
+  color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.kg-kecil { font-size: 12.5px; }
+.kg-v small { font-size: 9.5px; font-weight: 500; color: var(--variant); }
+.kg-nama { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.kg-km { flex: none; }
+.kg-t {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 10.5px; line-height: 13px; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.kg-t2 { color: var(--variant); }
+
+/* ISPU dan AQI diberi tint warna kategorinya, angkanya tetap putih. Warna
+   kategori gelap seperti Berbahaya dan Hazardous tak terbaca kalau dipakai
+   sebagai warna angka di atas kaca gelap. */
+.kg-ispu {
+  grid-column: 1; grid-row: 1 / 3; justify-content: flex-start; padding: 4px 7px 4px;
+  background: color-mix(in srgb, var(--ki) 26%, rgba(255, 255, 255, .03));
+  border-color: color-mix(in srgb, var(--ki) 50%, transparent);
+}
+.kg-ispu .kg-v { font-size: 22px; line-height: 25px; }
+.kg-krit { font-family: var(--font-mono); font-size: 8px; line-height: 11px; color: var(--variant); }
+/* <sub> tanpa menaikkan tinggi baris, supaya kotak ISPU tidak bergeser. */
+.kg-krit sub, .kb-param-n sub { font-size: .72em; line-height: 0; vertical-align: baseline; position: relative; top: .3em; }
+.kg-tren { margin-top: auto; font-family: var(--font-mono); font-size: 8px; line-height: 10px; color: var(--variant); }
+.kg-naik { color: #ff9a9a; }
+.kg-turun { color: #7fe3b0; }
+.kg-aqi {
+  grid-column: 2 / 6; grid-row: 1;
+  background: color-mix(in srgb, var(--ka) 24%, rgba(255, 255, 255, .03));
+  border-color: color-mix(in srgb, var(--ka) 50%, transparent);
+}
+.kg-rokok { grid-column: 6 / 10; grid-row: 1; }
+.kg-pandang { grid-column: 10 / 14; grid-row: 1; }
+.kg-api { grid-column: 2 / 7; grid-row: 2; }
+.kg-gunung { grid-column: 7 / 14; grid-row: 2; }
+.kg-api .kg-l .material-symbols-outlined { color: #ff8b3d; font-variation-settings: "FILL" 1; }
+.kg-gunung .kg-l .material-symbols-outlined { color: #ffc65e; }
+/* Kotak menyala cuma untuk peringatan, asap menuju kota dan terpapar SO2. */
+.kg-nyala-api { background: rgba(255, 106, 26, .17); border-color: rgba(255, 138, 61, .65); }
+.kg-nyala-gn { background: rgba(160, 110, 255, .17); border-color: rgba(190, 150, 255, .65); }
+.kg-seg { flex: none; width: 9px; height: 8px; background: var(--gw); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+
+/* Tablet: kartu 366 x 100, grid yang sama dipadatkan. Lebar dihitung dari baris
+   gunung terpanjang di huruf tablet, 149 px. Tinggi, kepala 16 + 3 + 27 + 3 + 35 = 84. */
+@media (max-width: 900px) {
+  .kk { flex-basis: 366px; width: 366px; height: 100px; padding: 7px 10px 7px 9px; }
+  .kk-atas { height: 16px; }
+  .kk-nama { font-size: 13px; }
+  .kk-bento { gap: 3px; margin-top: 3px; grid-template-columns: 54px repeat(12, minmax(0, 1fr)); grid-template-rows: 27px 35px; }
+  .kg { padding: 0 6px; }
+  .kg-l { font-size: 7px; line-height: 9px; }
+  .kg-v { font-size: 13px; line-height: 16px; }
+  .kg-kecil { font-size: 11px; }
+  .kg-t { font-size: 9.5px; line-height: 12px; }
+  .kg-ispu { padding: 3px 6px; }
+  .kg-ispu .kg-v { font-size: 18px; line-height: 20px; }
+}
+/* HP. BELUM dirancang, user minta dilewati dulu. Supaya tidak rusak, cuma baris
+   atas yang tampil. Jatah 34px di bawah dipindah dari .ui-bottom ke bilah ini,
+   supaya kartunya tidak tertimpa gagang panel kontrol bawah. */
+@media (max-width: 640px) {
+  .kota-bar { margin-top: 8px; margin-bottom: 34px; }
+  #ui.kota-on .ui-bottom { padding-bottom: 0; }
+  .kk { flex-basis: 268px; width: 268px; height: 78px; padding: 7px 10px 7px 9px; }
+  .kb-judul { padding: 6px 11px 0; }
+  .kb-jendela { padding: 6px 0 8px; }
+  .kota-track { padding-left: 11px; gap: 9px; }
+  .kk-bento { grid-template-rows: 38px; }
+  .kg-ispu { grid-row: 1; }
+  .kg-krit, .kg-tren, .kg-api, .kg-gunung { display: none; }
+  .kb-cari input { width: 150px; }
+  .kb-cari-hasil { width: 220px; }
+  .kb-geser { top: 6px; bottom: 8px; width: 32px; }
+  .kb-geser .material-symbols-outlined { width: 24px; height: 24px; font-size: 19px; }
+}
+
+/* ===================== ISIAN SLIDER WAKTU =====================
+   Jalur slider terisi dari kiri sampai tombolnya, sisanya kosong. CSS Nimbus
+   di atas sudah menyiapkan gradasi berukuran var(--fill) tapi tak ada yang
+   mengisinya, jadi jalurnya dulu selalu tampak penuh. Sekarang showFrame di
+   app.js menulis --p, posisi 0 sampai 1. Lebar isian dihitung sampai TENGAH
+   tombol, bukan persen mentah, supaya ujung isian tidak mencuat keluar dari
+   tombol di awal dan tertinggal di akhir. */
+#time-slider::-webkit-slider-runnable-track {
+  background: linear-gradient(to right, var(--secondary), var(--primary)) 0 0 /
+                calc(var(--p, 0) * (100% - var(--thumb, 18px)) + var(--thumb, 18px) / 2) 100% no-repeat,
+              rgba(255, 255, 255, .14);
+}
+
+/* ===================== LAST UPDATE DI BAWAH KARTU BRAND =====================
+   Desktop dan tablet. placeFreshBadge() di app.js memindahkannya ke sesudah
+   .brand-row. Di HP badge tetap di atas legenda, aturannya di blok HP. */
+@media (min-width: 641px) {
+  .col > .fresh-badge { position: static; align-self: flex-start; }
+}
+
+/* ===================== IKON TITIK API =====================
+   Pengganti titik merah, diminta user. Ikon api Material jingga dengan tepi gelap
+   supaya terbaca di atas palet mana pun. Pudar karena umur diatur Leaflet lewat
+   opacity marker. */
+.api-ikon { background: none; border: 0; }
+/* Api di atas bulatan gelap kecil. Tanpa bulatan, ikon jingga tenggelam di atas
+   palet PM2,5 yang juga merah jingga. */
+.api-ikon .material-symbols-outlined {
+  display: flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border-radius: 50%;
+  font-size: 13px; line-height: 1; color: #ffb02e;
+  font-variation-settings: "FILL" 1, "wght" 600;
+  background: rgba(24, 10, 4, .82); border: 1px solid rgba(255, 196, 120, .75);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .6);
+}
+
+/* ===================== STATUS DI SAMPING LEGENDA =====================
+   Pengganti banner titik api dan banner gunung api. Menempel di kiri batang
+   legenda, sama tinggi dengan dasarnya. Keterangan panjang muncul ke atas waktu
+   kotaknya ditunjuk atau difokus. */
+/* Berjajar mendatar, urut status gunung, titik api, lalu batang legenda, diminta
+   user. Isinya dipadatkan (keterangan waktu titik api pindah ke tooltip) supaya
+   jajaran ini tidak menabrak badge parameter di kiri bilah. */
+.status-samping {
+  position: absolute; right: calc(100% + 8px); bottom: 0;
+  display: flex; flex-direction: row; gap: 8px; align-items: stretch; pointer-events: auto;
+}
+.ss-grup {
+  position: relative; display: flex; align-items: center; gap: 10px;
+  padding: 7px 13px; white-space: nowrap; cursor: help; outline: none;
+  background: var(--glass-strong); backdrop-filter: blur(var(--blur)) saturate(1.25);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(1.25);
+  border: 1px solid var(--glass-brd); border-radius: var(--r-panel);
+  box-shadow: var(--shadow), var(--rim);
+  font-family: var(--font-ui); font-size: 11px; color: var(--variant);
+}
+.ss-judul {
+  display: flex; align-items: center; gap: 5px;
+  font-family: var(--font-mono); font-size: 9.5px; font-weight: 500;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--secondary);
+}
+.ss-judul .material-symbols-outlined { font-size: 15px; }
+.ss-api .material-symbols-outlined { color: #ff6a1a; font-variation-settings: "FILL" 1; }
+.ss-item { display: flex; align-items: center; gap: 5px; }
+.ss-item b { color: var(--ink); font-weight: 600; }
+.ss-seg {
+  display: block; width: 11px; height: 10px; background: var(--gw);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+.ss-tip {
+  display: none; position: absolute; right: 0; bottom: calc(100% + 8px); z-index: 30;
+  width: 290px; white-space: normal; padding: 10px 12px;
+  background: var(--glass-strong); backdrop-filter: blur(var(--blur-lg)) saturate(1.25);
+  -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(1.25);
+  border: 1px solid var(--glass-brd-strong); border-radius: var(--r-card); box-shadow: var(--shadow);
+  font-size: 11px; line-height: 1.5; color: var(--ink); cursor: default;
+}
+.ss-grup:hover .ss-tip, .ss-grup:focus .ss-tip, .ss-grup:focus-within .ss-tip { display: block; }
+
+/* Layar sempit: legenda AQI saja sudah selebar setengah layar, jajaran status di
+   sampingnya akan menabrak badge. Status naik ke atas legenda, tetap mendatar. */
+@media (min-width: 641px) and (max-width: 1180px) {
+  .status-samping { position: static; flex-direction: row; flex-wrap: wrap; justify-content: flex-end; }
+}
+
+/* HP: legenda tegak di kiri, jadi status tidak bisa menempel di sampingnya.
+   Ditaruh mengalir di kolom legenda, rata kanan, seperti badge Last update. */
+@media (max-width: 640px) {
+  .status-samping { position: static; flex-wrap: wrap; justify-content: flex-end; max-width: calc(100vw - 24px); }
+  .ss-grup { padding: 6px 10px; gap: 4px 8px; font-size: 10.5px; flex-wrap: wrap; justify-content: flex-end; white-space: normal; }
+  .ss-tip { width: min(290px, 80vw); }
+}
+
+/* ===================== LAYAR PENUH =====================
+   Diminta user untuk booth. Mode layar penuh dulu menyembunyikan seluruh
+   .ui-bottom, sekarang legenda dan status sampingnya tetap tampil. Panel slider
+   lama tetap disembunyikan, slider waktu ada di bilah Kabar Kota. */
+#stage.immersive #ui .ui-bottom { display: flex !important; }
+#stage.immersive #ui .ui-bottom .timeline { display: none !important; }
+#stage.immersive #ui .legend-col { margin-left: auto; }
+/* #ui membagi ruang dengan space-between. Waktu bilah Kabar Kota ada, anaknya
+   tiga, dan di layar penuh bagian atas hampir kosong, jadi legenda terdorong ke
+   TENGAH peta. margin-top auto menempelkannya tepat di atas bilah. */
+#ui.kota-on .ui-bottom { margin-top: auto; }
+
+/* ===================== BADGE PARAMETER DI ATAS BILAH KABAR KOTA =====================
+   Nama parameter yang sedang tampil di peta, menempel di kiri atas bilah. Waktu
+   rotasi berganti, isinya memudar keluar lalu masuk lagi (kelas .pudar diatur
+   kota.js). Sejajar dengan dasar legenda di kanan. */
+.kota-bar { position: relative; }
+.kb-param {
+  position: absolute; left: 0; bottom: calc(100% + 10px); z-index: 3;
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 15px 7px 11px; border-radius: var(--r-full);
+  background: var(--glass-strong); backdrop-filter: blur(var(--blur)) saturate(1.25);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(1.25);
+  border: 1px solid var(--glass-brd-strong); box-shadow: var(--shadow), var(--rim);
+  font-family: var(--font-display); font-size: 15px; font-weight: 600; color: var(--ink);
+  white-space: nowrap; pointer-events: none;
+  transition: opacity .25s ease, transform .25s ease;
+}
+.kb-param:empty { display: none; }
+.kb-param .material-symbols-outlined { font-size: 19px; color: var(--secondary); }
+.kb-param.pudar { opacity: 0; transform: translateY(4px); }
+/* HP: badge disembunyikan. Nama parameter sudah tampil di chip bawah logo, dan
+   di HP panel slider duduk tepat di atas bilah, jadi badge akan menimpanya. */
+@media (max-width: 640px) {
+  .kb-param { display: none; }
+}
+
+/* ===================== KOTAK MODEL DI KOLOM KANAN =====================
+   Panel .selects lama dipindah utuh ke dalam kotak ini. Kaca panelnya sendiri
+   dibuang supaya tidak jadi kaca di atas kaca, dan aturan layar pendek yang
+   dulu menyembunyikan .selects di panel kiri tidak berlaku di sini. */
+.model-box { width: 236px; }
+/* Pil nama tombol di bawahnya (Titik Api dan seterusnya) punya z-index 60 dan
+   menimpa kotak yang terbuka. Wadahnya dinaikkan di atas pil itu. */
+.col.items-end .model-wrap { position: relative; z-index: 70; }
+.model-box .panel.selects {
+  display: flex !important; width: auto; flex-direction: column;
+  background: none; border: 0; box-shadow: none;
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+
+/* ===================== BAYANGAN PETA UNTUK PUDAR SILANG =====================
+   Salinan diam seluruh peta yang dipasang kota.js di atas peta asli waktu
+   rotasi Kabar Kota berganti parameter, lalu dipudarkan. Tidak menangkap klik. */
+.leaflet-container > .hantu-peta { z-index: 401; pointer-events: none !important; }
+.leaflet-container > .hantu-peta * { pointer-events: none !important; }
+
+/* ===================== LEGENDA SETINGGI STATUS SAMPING =====================
+   Diminta user, batang legenda dan kotak status gunung dan titik api harus sama
+   tinggi. Dulu legenda 47 px (sel dua baris ISPU dan AQI plus padding 7 px),
+   status 31 px. Keduanya sekarang DIPATOK 32 px, legenda yang dipadatkan, supaya
+   jajarannya rata walau isi sel legenda berganti tiap rotasi. Desktop dan tablet
+   saja, di HP legenda tegak dan aturannya sendiri. */
+@media (min-width: 641px) {
+  .legend-panel, .ss-grup { height: 32px; box-sizing: border-box; }
+  .ss-grup { padding-top: 0; padding-bottom: 0; }
+  .legend { padding: 3px 5px 3px 0; align-items: stretch; }
+  .legend-head { font-size: 10px; padding: 0 12px; }
+  .legend-cell { min-height: 0; font-size: 10px; }
+  .legend-cell.dua-baris { padding: 0 10px; gap: 0; line-height: 1.05; }
+  .legend-cell.dua-baris b { font-size: 9.5px; }
+  .legend-cell.dua-baris span { font-size: 8.5px; }
+}

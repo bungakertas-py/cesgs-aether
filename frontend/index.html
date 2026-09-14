@@ -110,42 +110,6 @@
             </button>
           </div>
 
-          <!-- Banner TITIK API: hotspot VIIRS 48 jam terakhir (pengamatan satelit).
-               Muncul saat toggle Titik Api aktif. Diisi app.js dari titik_api.json. -->
-          <div id="api-note" class="cyc-note api-note">
-            <div class="cyc-note-top">
-              <span class="material-symbols-outlined">local_fire_department</span>
-              <span class="cyc-note-txt" id="api-ringkas">Titik panas VIIRS</span>
-            </div>
-            <div class="cyc-detail">
-              <div class="api-lead">Titik api KUAT (FRP di atas 100 MW) dari satelit VIIRS yang terdeteksi 24 jam sampai jam yang tampil di slider. Satelit lewat beberapa kali sehari, jadi titik yang lebih pudar adalah deteksi yang lebih lama. Ini PENGAMATAN (telat sekitar 3 jam), bukan ramalan, dan bisa terlewat bila tertutup awan. Untuk jam ramalan yang tampil pengamatan terakhir. Klik titik untuk detail dan arah asapnya.</div>
-              <div class="cyc-row"><span class="api-sw" style="background:#a80000"></span><b>Titik api</b><span class="cyc-th">FRP &ge; 100 MW</span></div>
-            </div>
-            <button type="button" class="cyc-tab" id="api-note-toggle" aria-label="Tampilkan keterangan titik api">
-              <span class="material-symbols-outlined cyc-caret">expand_more</span>
-            </button>
-          </div>
-
-          <!-- Banner GUNUNG API: status resmi PVMBG + gas belerang CAMS. Diisi app.js. -->
-          <div id="gunung-note" class="cyc-note gunung-note">
-            <div class="cyc-note-top">
-              <span class="material-symbols-outlined">volcano</span>
-              <span class="cyc-note-txt" id="gunung-ringkas">Gunung api</span>
-            </div>
-            <div class="cyc-detail">
-              <div class="api-lead">Segitiga menunjukkan status resmi gunung api dari PVMBG, dan lingkaran putus putus radius bahaya yang direkomendasikan. Warna di peta adalah gas belerang dari gunung api di udara dekat permukaan menurut model CAMS, bukan abu. Klik gunung untuk laporan terbarunya.</div>
-              <div class="cyc-row"><span class="gn-sw" style="--gw:#e0241b"></span><b>Awas</b><span class="cyc-th">Level IV</span></div>
-              <div class="cyc-row"><span class="gn-sw" style="--gw:#ff8a00"></span><b>Siaga</b><span class="cyc-th">Level III</span></div>
-              <div class="cyc-row"><span class="gn-sw" style="--gw:#f2c200"></span><b>Waspada</b><span class="cyc-th">Level II</span></div>
-              <div class="cyc-row"><span class="gn-sw" style="--gw:#3fb950"></span><b>Normal</b><span class="cyc-th">Level I</span></div>
-            </div>
-            <button type="button" class="cyc-tab" id="gunung-note-toggle" aria-label="Tampilkan keterangan gunung api">
-              <span class="material-symbols-outlined cyc-caret">expand_more</span>
-            </button>
-          </div>
-
-          <!-- Kartu ARAH ASAP: lintasan asap dari satu titik api, dibuka lewat
-               tombol di popup titik api. Isinya diisi app.js (gambarAsap). -->
           <div id="asap-card" class="asap-card" role="region" aria-label="Arah asap">
             <div class="asap-top">
               <span class="material-symbols-outlined">air</span>
@@ -223,23 +187,6 @@
               <button class="level-btn" data-level="strato">Stratosfer, 70 hPa</button>
             </div>
           </div>
-
-          <div class="panel selects">
-            <div class="field">
-              <div class="label-caps">MODEL</div>
-              <div class="select-wrap">
-                <select id="model-select"><option>CAMS - 44 km</option></select>
-                <span class="material-symbols-outlined">arrow_drop_down</span>
-              </div>
-            </div>
-            <div class="field">
-              <div class="label-caps">LEVEL</div>
-              <div class="select-wrap">
-                <select id="level-select" disabled><option value="surface">Permukaan</option></select>
-                <span class="material-symbols-outlined">arrow_drop_down</span>
-              </div>
-            </div>
-          </div>
         </div>
 
         <!-- kanan: lang + zoom + kontrol -->
@@ -258,6 +205,30 @@
             <button id="zoom-out" aria-label="Perkecil" data-tip="Perkecil"><span class="material-symbols-outlined">remove</span></button>
           </div>
           <button id="geo-btn" class="icon-btn" aria-label="Udara di lokasi saya" data-tip="Lokasi"><span class="material-symbols-outlined">my_location</span></button>
+          <!-- Pemilih MODEL, dipindah dari panel kiri jadi tombol di kanan, diminta
+               user. Memakai kelas search-wrap dan search-box supaya ikut semua aturan
+               tombol Cari, pil nama di kiri, ciut di HP, kotak terbuka ke kiri. -->
+          <div class="search-wrap model-wrap">
+            <button id="model-btn" class="icon-btn" aria-label="Pilih model" data-tip="Model"><span class="material-symbols-outlined">deployed_code</span></button>
+            <div id="model-box" class="search-box model-box">
+              <div class="panel selects">
+                <div class="field">
+                  <div class="label-caps">MODEL</div>
+                  <div class="select-wrap">
+                    <select id="model-select"><option>CAMS - 44 km</option></select>
+                    <span class="material-symbols-outlined">arrow_drop_down</span>
+                  </div>
+                </div>
+                <div class="field">
+                  <div class="label-caps">LEVEL</div>
+                  <div class="select-wrap">
+                    <select id="level-select" disabled><option value="surface">Permukaan</option></select>
+                    <span class="material-symbols-outlined">arrow_drop_down</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
           <div class="city-wrap">
             <button id="city-toggle" class="icon-btn" aria-label="Ikon kondisi per kota" data-tip="Kondisi"><span class="material-symbols-outlined">partly_cloudy_day</span></button>
             <div id="cond-legend" class="cond-legend"></div>
@@ -302,6 +273,9 @@
 
         <!-- legenda — bawah kanan (legenda ikon kondisi di atas, muncul saat toggle) -->
         <div class="legend-col">
+          <!-- Status gunung api dan titik api, di kiri batang legenda. Pengganti
+               dua banner lama. Diisi aturStatusSamping() di app.js. -->
+          <div id="status-samping" class="status-samping" hidden></div>
           <div class="legend-panel">
             <div class="legend-head mono" id="legend-head">KNOTS</div>
             <div class="legend" id="legend-cells"></div>
@@ -413,5 +387,8 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet-velocity@1.7.0/dist/leaflet-velocity.min.js"></script>
   <script src="app.js"></script>
+  <!-- Bilah Kabar Kota: kartu tiap kota berjalan di bawah slider.
+       WAJIB sesudah app.js, sebab meminjam data dan fungsinya. -->
+  <script src="kota.js"></script>
 </body>
 </html>

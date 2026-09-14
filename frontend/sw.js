@@ -1,7 +1,7 @@
 /* Service worker CESGS Aether — cache SHELL app (berversi), data udara TETAP
  * online. Naikkan VERSION tiap rilis frontend agar user dapat versi terbaru
  * (cache lama dihapus saat activate). */
-const VERSION = "v2";
+const VERSION = "v3";
 const CACHE = "cesgs-aether-" + VERSION;
 
 // Saat REVIEW LOKAL, jangan cache shell sama sekali. Strategi cache-first membuat
@@ -19,7 +19,7 @@ const SHELL = [
   // Tiap berkas di sini WAJIB ada. cache.addAll itu semua atau tidak sama sekali,
   // jadi satu 404 menggagalkan seluruh precache dan gagalnya ditelan .catch().
   // Daftar Kertas Emisi dulu memuat skewt.js yang tidak pernah ada di app ini.
-  "./", "./index.html", "./style.css", "./app.js",
+  "./", "./index.html", "./style.css", "./app.js", "./kota.js",
   "./cesgs-mark.png", "./cesgs-logo.png", "./manifest.webmanifest",
   "./icon-192.png", "./icon-512.png",
   "./data/world_countries.geojson", "./data/idn_provinces.geojson", "./data/id_places.json",

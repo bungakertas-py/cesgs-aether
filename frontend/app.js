@@ -635,6 +635,15 @@ function setActiveLayer(layerKey) {
   updateHash();
 }
 
+// Posisi slider 0 sampai 1 untuk isian jalurnya. CSS sudah punya gradasi isian
+// tapi tak pernah diberi angka, jadi jalurnya dulu selalu tampak penuh. Dipanggil
+// juga langsung dari event input, sebab showFrame baru sampai ke sini sesudah
+// medan angin frame itu selesai dimuat dan isiannya jadi tertinggal dari tombol.
+function isiSlider(ts) {
+  const max = parseInt(ts.max, 10) || 0;
+  ts.style.setProperty("--p", max > 0 ? (parseInt(ts.value, 10) / max).toFixed(4) : "0");
+}
+
 async function showFrame(i) {
   current = (i + frames.length) % frames.length;
   const frame = frames[current];
@@ -679,10 +688,11 @@ async function showFrame(i) {
 
   const vt = $("valid-time");
   if (vt) vt.textContent = DAILY_LAYERS.has(activeLayer) ? fmtDay(frame.valid_time) : fmtValid(frame.valid_time);
-  const ts = $("time-slider"); if (ts) ts.value = String(current);
+  const ts = $("time-slider"); if (ts) { ts.value = String(current); isiSlider(ts); }
   refreshCityIcons();                    // label kota (+ikon bila aktif) ikut waktu aktif
   if (fireOn) drawFire();                // titik api ikut jam di slider
   if (asapTitik) jadwalAsap();           // lintasan asap dihitung ulang dari jam yang tampil
+  if (window.kotaTick) window.kotaTick();  // kartu Kabar Kota ikut jam yang tampil
   if (cyclonesOn) refreshCyclones();     // siklon + jalur ikut waktu aktif
   if (itczOn) refreshItcz();             // zona ITCZ ikut waktu aktif
   if (activeLayer === "pressure_surface") refreshIsobars();   // isobar ikut waktu aktif
@@ -1808,6 +1818,9 @@ function pickPlace(lat, lon, name) {
   map.setView([lat, lon], 8, { animate: true });
   openPoint(lat, lon, name);
   $("search-box")?.classList.remove("open");
+  // Bilah Kabar Kota ikut melompat ke kota yang dicari, supaya pengunjung tak
+  // perlu menunggu satu putaran penuh untuk melihat kartunya.
+  if (name && window.kotaLompat) window.kotaLompat(name);
 }
 
 // ================= LABEL & IKON KONDISI PER KOTA =================
@@ -2134,7 +2147,6 @@ function toggleCyclones() {
 // Asap bisa dipakai untuk jam ramalan.
 const FIRE_WARNA = "#a80000";
 const FIRE_JENDELA_JAM = 24;
-let fireRenderer = null;
 let fireMaxT = 0;             // waktu deteksi TERBARU dalam data, ms
 
 function loadFire() {
@@ -2184,23 +2196,17 @@ function drawFire() {
     // sampai sekitar sepertiga di ujung jendela 24 jam.
     const umur = (jangkar - tp) / 3600e3;
     const pekat = umur <= 6 ? 0.95 : Math.max(0.3, 0.95 - ((umur - 6) / (FIRE_JENDELA_JAM - 6)) * 0.65);
-    const m = L.circleMarker([p.la, p.lo], { pane: "fire", renderer: fireRenderer,
-      radius: 3.5, weight: 0.5, color: "#3a0a0a", opacity: pekat,
-      fillColor: FIRE_WARNA, fillOpacity: pekat });
+    // Ikon api, bukan titik merah, diminta user. Pudarnya tetap ikut umur deteksi.
+    const m = L.marker([p.la, p.lo], { pane: "fire", keyboard: false, title: "Titik api", opacity: pekat,
+      icon: L.divIcon({ className: "api-ikon", iconSize: [18, 18], iconAnchor: [9, 15],
+        html: '<span class="material-symbols-outlined">local_fire_department</span>' }) });
     m.on("click", (ev) => { L.DomEvent.stopPropagation(ev); openFirePopup(p); });
     fireGroup.addLayer(m);
   }
-  // Kalimat banner sengaja pendek, diminta user. Jam slider tak perlu diulang,
-  // sudah terlihat di slider. Untuk jam ramalan cukup disebut kapan data
-  // terakhirnya, hari dan jam saja.
-  const ring = $("api-ringkas");
-  if (ring) {
-    if (!titik.length) ring.textContent = "Belum ada data titik api";
-    else if (belum) ring.textContent = `${n} titik api, data terakhir ${_jamPendek(fireMaxT)}`;
-    else ring.textContent = n
-      ? `${n} titik api dalam 24 jam terakhir`
-      : "Tidak ada titik api dalam 24 jam terakhir";
-  }
+  // Banner titik api sudah dibuang, diminta user. Jumlahnya tampil di status
+  // samping legenda, kalimat lengkapnya di keterangan waktu status itu ditunjuk.
+  statusApi = { n, ada: titik.length > 0, belum: !!belum, akhir: fireMaxT };
+  aturStatusSamping();
 }
 // Popup titik api. Default terbuka ke ATAS marker (tip di bawah). Untuk titik dekat
 // tepi ATAS frame, popup default nyembur keluar bingkai (peta terkunci maxBounds,
@@ -2230,18 +2236,15 @@ function openFirePopup(p) {
 function toggleFire() {
   fireOn = !fireOn;
   $("api-toggle") && $("api-toggle").classList.toggle("active", fireOn);
-  const note = $("api-note");
   if (fireOn) {
-    if (!fireRenderer) fireRenderer = L.canvas({ pane: "fire", padding: 0.5 });
     if (!fireGroup) fireGroup = L.layerGroup([], { pane: "fire" });
     fireGroup.addTo(map);
-    if (note) note.classList.add("show");
     loadFire().then(() => { if (!fireOn) return; hitungFireMaxT(); drawFire(); });
   } else {
     if (fireGroup) { fireGroup.clearLayers(); map.removeLayer(fireGroup); }
     tutupAsap();
-    if (note) note.classList.remove("show", "open");
   }
+  aturStatusSamping();
   updateHash();
 }
 
@@ -2293,13 +2296,10 @@ function drawGunung() {
   }
   const n = { 1: 0, 2: 0, 3: 0, 4: 0 };
   for (const g of daftar) n[g.lvl] = (n[g.lvl] || 0) + 1;
-  const ring = $("gunung-ringkas");
-  if (ring) {
-    const bagian = [];
-    if (n[4]) bagian.push(`${n[4]} Awas`);
-    bagian.push(`${n[3]} Siaga`, `${n[2]} Waspada`);
-    ring.textContent = daftar.length ? `${bagian.join(", ").replace(/^(\d+)/, "$1 gunung")}` : "Data gunung api belum tersedia";
-  }
+  // Banner gunung sudah dibuang, diminta user. Hitungan per status tampil di
+  // samping legenda.
+  statusGunung = daftar.length ? n : null;
+  aturStatusSamping();
 }
 
 function openGunungPopup(g) {
@@ -2323,17 +2323,67 @@ function openGunungPopup(g) {
 // dan bannernya muncul, label nilai kota disembunyikan (nilai gas di pusat kota
 // hampir selalu nol, jadi cuma mengotori peta). Dipanggil tiap ganti layer.
 function aturGunung() {
-  const fokus = activeLayer === "vso2";
-  const note = $("gunung-note");
+  const fokus = activeLayer === "vso2" || gunungSelalu;
   if (fokus) {
     if (!gunungGroup) gunungGroup = L.layerGroup([], { pane: "gunung" });
     gunungGroup.addTo(map);
-    if (note) note.classList.add("show");
-    loadGunung().then(() => { if (activeLayer === "vso2") drawGunung(); });
+    loadGunung().then(() => { if (activeLayer === "vso2" || gunungSelalu) drawGunung(); });
   } else {
     if (gunungGroup) { gunungGroup.clearLayers(); map.removeLayer(gunungGroup); }
-    if (note) note.classList.remove("show", "open");
   }
+  aturStatusSamping();
+}
+
+// ================= STATUS DI SAMPING LEGENDA =================
+// Pengganti banner titik api dan banner gunung api, diminta user. Satu kotak
+// kaca kecil tepat di kiri batang legenda. Isinya hitungan status gunung waktu
+// parameter Gas Gunung Api tampil, dan jumlah titik api waktu Titik Api
+// menyala. Penjelasan lengkap yang dulu ada di banner muncul waktu kotaknya
+// ditunjuk, atau diketuk di layar sentuh.
+let statusApi = null;       // {n, ada, belum, akhir}, diisi drawFire
+// Selama Kabar Kota menyala, gunung api dan statusnya tampil MENETAP di semua
+// parameter, bukan cuma di Gas Gunung Api. Diatur kota.js lewat setGunungSelalu.
+let gunungSelalu = false;
+function setGunungSelalu(on) {
+  gunungSelalu = !!on;
+  aturGunung();
+}
+let statusGunung = null;    // {1..4: jumlah}, diisi drawGunung
+
+const KET_API = "Titik api KUAT (FRP di atas 100 MW) dari satelit VIIRS yang terdeteksi 24 jam " +
+  "sampai jam yang tampil di slider. Ikon yang lebih pudar adalah deteksi yang lebih lama. Ini " +
+  "PENGAMATAN (telat sekitar 3 jam), bukan ramalan, dan bisa terlewat bila tertutup awan. Untuk " +
+  "jam ramalan yang tampil pengamatan terakhir. Klik ikon api untuk detail dan arah asapnya.";
+const KET_GUNUNG = "Segitiga menunjukkan status resmi gunung api dari PVMBG, dan lingkaran putus " +
+  "putus radius bahaya yang direkomendasikan. Warna di peta adalah gas SO\u2082 dari gunung api di " +
+  "udara dekat permukaan menurut model CAMS, bukan abu. Klik gunung untuk laporan terbarunya.";
+
+function aturStatusSamping() {
+  const box = $("status-samping");
+  if (!box) return;
+  const bagian = [];
+  if ((activeLayer === "vso2" || gunungSelalu) && statusGunung) {
+    const n = statusGunung;
+    const item = (lvl) => `<span class="ss-item"><i class="ss-seg" style="--gw:${GUNUNG_WARNA[lvl]}"></i>` +
+      `${GUNUNG_NAMA[lvl]} <b>${n[lvl] || 0}</b></span>`;
+    bagian.push(`<div class="ss-grup" tabindex="0">` +
+      `<span class="ss-judul"><span class="material-symbols-outlined">landscape</span>Gunung</span>` +
+      (n[4] ? item(4) : "") + item(3) + item(2) + item(1) +
+      `<div class="ss-tip">${_esc(KET_GUNUNG)}</div></div>`);
+  }
+  if (fireOn && statusApi) {
+    const a = statusApi;
+    // Keterangan waktu dipindah ke tooltip supaya jajaran di samping legenda
+    // tetap ringkas dan tidak menabrak badge parameter.
+    const sub = !a.ada ? "Belum ada data titik api."
+      : a.belum ? `Data terakhir ${_jamPendek(a.akhir)}.` : "Dalam 24 jam terakhir.";
+    bagian.push(`<div class="ss-grup" tabindex="0">` +
+      `<span class="ss-judul ss-api"><span class="material-symbols-outlined">local_fire_department</span>Titik api</span>` +
+      `<span class="ss-item"><b>${a.n}</b></span>` +
+      `<div class="ss-tip"><b>${a.n} titik api.</b> ${_esc(sub)}<br>${_esc(KET_API)}</div></div>`);
+  }
+  box.innerHTML = bagian.join("");
+  box.hidden = !bagian.length;
 }
 
 // ================= ARAH ASAP (lintasan asap dari titik api) =================
@@ -3017,6 +3067,7 @@ async function init() {
       slider.disabled = dataMissing;
       slider.max = String(Math.max(0, frames.length - 1));
       slider.addEventListener("input", (ev) => {
+        isiSlider(slider);
         if (playing) togglePlay();
         showFrame(parseInt(ev.target.value, 10));
       });
@@ -3057,7 +3108,6 @@ async function init() {
     $("itcz-toggle")?.addEventListener("click", toggleItcz);
     $("mon-toggle")?.addEventListener("click", toggleMonsoon);
     $("api-toggle")?.addEventListener("click", toggleFire);
-    $("api-note-toggle")?.addEventListener("click", () => $("api-note")?.classList.toggle("open"));
     map.on("moveend", () => { refreshCityIcons(); });
     map.on("zoomend", applyLabelTiles);   // ambang label CARTO vs label kota sendiri
 
@@ -3098,24 +3148,38 @@ async function init() {
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeAbout(); });
     // Badge "Last update" (HP): tap ikon "!" → buka teks; tap lagi/panah → tutup.
     $("data-fresh")?.addEventListener("click", () => $("data-fresh").classList.toggle("open"));
-    // Tempatkan badge: desktop → kontainer slider (atas-kanan); HP → dalam legend-col
-    // (di atas legenda; otomatis naik di atas tabel kondisi saat ikon kota aktif).
+    // Tempatkan badge: desktop → tepat di bawah kartu brand CESGS Aether (diminta
+    // user, slider sudah pindah ke bilah Kabar Kota); HP → dalam legend-col (di
+    // atas legenda; otomatis naik di atas tabel kondisi saat ikon kota aktif).
     const freshBadge = $("data-fresh");
     const placeFreshBadge = () => {
       if (!freshBadge) return;
       const hp = window.matchMedia("(max-width: 640px)").matches;
-      const host = document.querySelector(hp ? ".legend-col" : ".timeline");
-      if (host && freshBadge.parentElement !== host) host.insertBefore(freshBadge, host.firstChild);
+      if (hp) {
+        const host = document.querySelector(".legend-col");
+        if (host && freshBadge.parentElement !== host) host.insertBefore(freshBadge, host.firstChild);
+      } else {
+        const brand = document.querySelector(".brand-row");
+        if (brand && brand.nextElementSibling !== freshBadge) brand.insertAdjacentElement("afterend", freshBadge);
+      }
     };
     placeFreshBadge();
     window.addEventListener("resize", placeFreshBadge);
     // Dropdown legenda+threshold di banner indikasi siklon.
     $("cyc-note-toggle")?.addEventListener("click", () => $("cyc-note").classList.toggle("open"));
     $("asap-tutup")?.addEventListener("click", tutupAsap);
-    $("gunung-note-toggle")?.addEventListener("click", () => $("gunung-note")?.classList.toggle("open"));
     $("itcz-note-toggle")?.addEventListener("click", () => $("itcz-note").classList.toggle("open"));
 
     // Pencarian kota/kabupaten
+    // Kotak MODEL di kolom kanan. Buka tutup seperti kotak Cari, tutup waktu
+    // klik di luar atau Escape.
+    const mbox = $("model-box");
+    $("model-btn")?.addEventListener("click", (e) => { e.stopPropagation(); mbox?.classList.toggle("open"); });
+    document.addEventListener("click", (e) => {
+      if (mbox?.classList.contains("open") && !e.target.closest(".model-wrap")) mbox.classList.remove("open");
+    });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") mbox?.classList.remove("open"); });
+
     const sbox = $("search-box"), sin = $("search-input");
     $("search-btn")?.addEventListener("click", () => {
       if (sbox.classList.toggle("open")) { loadPlaces(); sin.focus(); }
